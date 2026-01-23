@@ -11,3 +11,8 @@ class ProductData:
         self.contifico_id = contifico_id
         self.inicial_stock = inicial_stock
         self.final_stock = final_stock
+
+    def __str__(self):
+        return ", ".join(map(str, [self.product_name, self.product_code,
+                                   self.unit_type, self.contifico_id,
+                                   self.inicial_stock, self.final_stock]))

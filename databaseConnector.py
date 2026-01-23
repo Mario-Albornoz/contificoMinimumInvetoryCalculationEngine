@@ -37,7 +37,7 @@ class databaseManager:
             product_name TEXT UNIQUE NOT NULL,
             product_code TEXT UNIQUE NOT NULL,
             contifico_id TEXT UNIQUE,
-            unit_type TEXT UNIQUE NOT NULL,
+            unit_type TEXT NOT NULL
         )
         """
 
@@ -58,8 +58,8 @@ class databaseManager:
         initial_stock DOUBLE NOT NULL,
         final_stock DOUBLE NOT NULL,
         FOREIGN KEY (product_id) REFERENCES product(id) ON DELETE CASCADE,
-        FOREIGN KEY (period_record_id) REFERENCES period_records(id) ON DELETE CASCADE,
-        UNIQUE (product_id, record_id)
+        FOREIGN KEY (period_record_id) REFERENCES period_record(id) ON DELETE CASCADE,
+        UNIQUE (product_id, period_record_id)
         )
         """
 
@@ -67,7 +67,7 @@ class databaseManager:
             "CREATE INDEX IF NOT EXISTS idx_product_code ON product(product_code)",
             "CREATE INDEX IF NOT EXISTS idx_period_dates ON period_record(start_date, end_date)",
             "CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory_records(product_id)",
-            "CREATE INDEX IF NOT EXISTS idx_inventory_record ON inventory_records(record_id)",
+            "CREATE INDEX IF NOT EXISTS idx_inventory_record ON inventory_records(period_record_id)",
         ]
 
         self.cursor.execute(product_table)
@@ -82,7 +82,7 @@ class databaseManager:
 
     def upsert_product(self, product_name:str, product_code:str, unit_type:str, contifico_id=None):
         query = """
-        INSERT INTO product (product_name, product_code, contifico_id, unite_type)
+        INSERT INTO product (product_name, product_code, unit_type, contifico_id)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(product_code) DO UPDATE SET
         product_name = excluded.product_name,
@@ -92,35 +92,38 @@ class databaseManager:
 
         self.execute(query, params=(product_name, product_code, unit_type, contifico_id))
 
-        return self.cursor.execute(
-            "SELECT id FROM product WHERE product_code= ?",
-            product_code
-        )
+        result = self.cursor.execute(
+            "SELECT id FROM product WHERE product_code = ?",
+            (product_code,)
+        ).fetchone()
+
+        return result[0] if result else None
 
     def insert_period_record(self, start_date, end_date, warehouse):
         #FUnction returns id for the period record created
         query = """
-        INSERT INTO period_records (start_date, end_date, warehouse)
+        INSERT INTO period_record (start_date, end_date, warehouse)
         VALUES(?,?,?)
         """
         self.execute(query, (start_date, end_date, warehouse))
 
-        return self.cursor.execute(
-            "SELECT id FROM period_records WHERE start_date = ? AND end_date = ? AND warehouse is ?",
+        result = self.cursor.execute(
+            "SELECT id FROM period_record WHERE start_date = ? AND end_date = ? AND warehouse = ?",
             (start_date, end_date, warehouse)
-        )
+        ).fetchone()
+
+        return result[0] if result else None
 
     def insert_inventory_record(self, product_id, period_id, initial_stock, final_stock):
         query = """
         INSERT INTO inventory_records 
-        (product_id, period_id, initial_stock,  final_stock)
+        (product_id, period_record_id, initial_stock,  final_stock)
         VALUES (?, ?, ?, ?)
-        ON CONFLICT(product_id, period_id) DO UPDATE SET
+        ON CONFLICT(product_id, period_record_id) DO UPDATE SET
             initial_stock = excluded.initial_stock,
-            final_stock = excluded.final_stock,
-            created_at = CURRENT_TIMESTAMP
+            final_stock = excluded.final_stock
         """
-        self.execute(query, (product_id, period_id, initial_stock))
+        self.execute(query, (product_id, period_id, initial_stock, final_stock))
 
     def insert_report(self,start_date, end_date, warehouse, products_table):
         period_id = self.insert_period_record(start_date, end_date, warehouse)

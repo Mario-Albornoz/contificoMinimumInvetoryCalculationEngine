@@ -6,14 +6,14 @@ def extract_data_from_report(ws):
     for row in ws.iter_rows(min_row=7, values_only=True):
         product_code_idx = headers.index('Código')
         product_name_idx = headers.index('Nombre')
-        inicial_stock_idx = headers.index('Inicial')
+        initial_stock_idx = headers.index('Inicial')
         final_stock_idx = headers.index('Stock Final')
         unit_type_idx = headers.index('Unidad')
 
         product = ProductData(
             product_code=row[product_code_idx],
             product_name=row[product_name_idx],
-            inicial_stock=row[inicial_stock_idx],
+            initial_stock=row[initial_stock_idx],
             final_stock=row[final_stock_idx],
             unit_type=row[unit_type_idx]
         )

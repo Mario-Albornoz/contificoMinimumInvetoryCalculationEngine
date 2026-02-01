@@ -8,7 +8,8 @@ db.initialize_schema()
 current_file_path = '../files/ReporteSaldosDisponibles.xlsx'
 
 
-def gather_data():
+
+def gather_data_from_report():
     ws = set_current_workbook(current_file_path)
 
     date_string = get_value_from_sheet('Rango de Fechas', ws)
@@ -29,7 +30,7 @@ def gather_data():
 
     for product in products:
         product_id = db.upsert_product(product.product_name, product.product_code, unit_type=product.unit_type)
-        db.insert_inventory_record(product_id, period_id, product.inicial_stock, product.final_stock)
+        db.insert_inventory_record(product_id, period_id, product.initial_stock, product.final_stock)
 
     print("dataset generated sucessfuly")
 
@@ -41,5 +42,5 @@ def set_current_workbook(file_path):
     return ws
 
 
-gather_data()
+gather_data_from_report()
 db.close()

@@ -4,17 +4,19 @@ from urllib.parse import urlparse, urljoin
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class WebScrapper:
-    def __init__(self, params:dict = None, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"), endpoint=os.getenv("CONTIFICO_DOWNLOAD_ENDPOINT")):
+    def __init__(self, params:dict = None, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"),  debug = False):
         self.username:str = username
         self.password:str = password
-        self.endpoint:str = endpoint
         self.params:dict = params
-        self.base_url:str = ""
+        self.base_url:str = os.getenv("CONTIFICO_BASE_ENDPOINT")
         self.session = requests.session()
         self.logged_in: bool = False
-        self.debug: bool= True
+        self.debug: bool = debug
 
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -28,48 +30,27 @@ class WebScrapper:
         if self.debug:
             print(f" DEBUG: {message}")
 
-    def login(self) -> bool:
-
-        login_url, login_data = self.initialize_session()
-
-        try:
-            self._print_debug(f"Attempting login with username: {self.username}")
-            response = self.session.post(login_url, login_data, allow_redirects= True)
-            self._print_debug(f"Login response status: {response.status_code}")
-            self._print_debug(f"Final URL after redirect: {response.url}")
-            self._print_debug(f"Cookies after login: {self.session.cookies.get_dict()}")
-
-            if 'login' not in response.url.lower():
-                print("Login was succesful")
-                return True
-            else:
-                print("✗ Login failed - still on login page")
-
-                return False
-
-        except requests.exceptions.RequestException as e:
-            print(f"Loging failed: {e}")
-
-        return False
-
     def initialize_session(self) -> tuple[str, dict]:
-        login_url = urljoin(self.base_url, "/sistema/administracion/login/")
-        self._print_debug(os.getenv("LOGIN_ENDPOINT"))
+        login_endpoint = os.getenv("LOGIN_ENDPOINT")
+        login_url = self.base_url + login_endpoint
+        self._print_debug(f"Login URL: {login_url}")
 
         try:
-            response = self.session.get(os.getenv("LOGIN_ENDPOINT"))
+            response = self.session.get(login_url)
             response.raise_for_status()
-            self._print_debug(f"Loging status: {response.status_code}")
-            self._print_debug(f" Cookies received : {self.session.cookies.get_dict()}")
+            self._print_debug(f"Login page status: {response.status_code}")
+            self._print_debug(f"Cookies received: {self.session.cookies.get_dict()}")
 
         except requests.exceptions.RequestException as e:
             print(f"Error accessing login page: {e}")
-            return False
+            return None, None
 
         csrf_token = None
-        if 'csrf' in self.session.cookies:
-            csrf_token = self.session.cookies['csrf']
-            self._print_debug(f'Found csrf_token {csrf_token}')
+        for cookie_name in ['csrftoken', 'csrf', 'CSRF-TOKEN']:
+            if cookie_name in self.session.cookies:
+                csrf_token = self.session.cookies[cookie_name]
+                self._print_debug(f'Found CSRF token in cookie: {csrf_token}')
+                break
 
         login_data = {
             'username': self.username,
@@ -81,30 +62,153 @@ class WebScrapper:
             self.session.headers.update({'X-CSRFToken': csrf_token})
 
         self.session.headers.update({
-            'Refer': login_url,
-            'Content-type': 'application/x-www-form-urlencoded',
+            'Referer': login_url,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Origin': 'https://0993361712001.contifico.com',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json, text/javascript, */*; q=0.01'
         })
 
         return login_url, login_data
 
-    def download_report(self, bodega_name:str):
-        download_root_path = os.getenv("DOWNLOAD_REPORTS_ROOT_PATH")
-        final_path = Path(f"../files/{bodega_name}").mkdir(exist_ok=True)
+    def login(self) -> bool:
+        login_url, login_data = self.initialize_session()
+
+        if not login_url:
+            return False
 
         try:
-            response = requests.get(self.endpoint, auth=(self.username, self.password))
+            self._print_debug(f"Attempting login with username: {self.username}")
+
+            response = self.session.post(login_url, data=login_data, allow_redirects=True)
+            self._print_debug(f"Login response status: {response.status_code}")
+
+            try:
+                login_json = response.json()
+                self._print_debug(f"Login JSON response: {login_json}")
+
+                if login_json.get('auth') == True:
+                    print("✓ Authentication successful")
+
+                    empresas = login_json.get('empresas', [])
+                    if empresas:
+                        self._print_debug(f"Companies available: {empresas}")
+
+                        base_url = os.getenv("CONTIFICO_BASE_ENDPOINT")
+                        company_select_url = f"{base_url}/sistema/accounts/seleccionar_empresa/"
+
+                        company_data = {'empresa': 21590}
+
+                        self._print_debug(f"Selecting company at: {company_select_url}")
+
+                        company_response = self.session.post(
+                            company_select_url,
+                            data=company_data,
+                            allow_redirects=True
+                        )
+
+                        self._print_debug(f"Company selection status: {company_response.status_code}")
+                        self._print_debug(f"Company selection URL: {company_response.url}")
+                        self._print_debug(f"Cookies after company selection: {self.session.cookies.get_dict()}")
+
+                        try:
+                            company_json = company_response.json()
+                            self._print_debug(f"Company selection response: {company_json}")
+
+                            if company_json.get('auth') == True or company_json.get('url_redirect'):
+                                redirect_url = company_json.get('url_redirect')
+
+                                if redirect_url:
+                                    if redirect_url.startswith('/'):
+                                        redirect_url = f"{base_url}{redirect_url}"
+
+                                    self._print_debug(f"Following redirect to: {redirect_url}")
+                                    final_response = self.session.get(redirect_url)
+                                    self._print_debug(f"Final URL: {final_response.url}")
+
+                                print("✓ Login and company selection successful")
+                                self.logged_in = True
+                                return True
+                            else:
+                                errors = company_json.get('errors', 'Unknown error')
+                                print(f"✗ Company selection failed: {errors}")
+                                return False
+
+                        except ValueError:
+                            self._print_debug(f"Company response is HTML, checking URL: {company_response.url}")
+
+                            if 'login' not in company_response.url.lower():
+                                print("✓ Login and company selection successful")
+                                self.logged_in = True
+                                return True
+                            else:
+                                with open('company_response.html', 'w', encoding='utf-8') as f:
+                                    f.write(company_response.text)
+                                print("✗ Company selection failed - saved response to company_response.html")
+                                return False
+                    else:
+                        print("✓ Login successful (no company selection needed)")
+                        self.logged_in = True
+                        return True
+                else:
+                    errors = login_json.get('errors', 'Unknown error')
+                    print(f"✗ Login failed: {errors}")
+                    return False
+
+            except ValueError as e:
+                self._print_debug(f"JSON parse error: {e}")
+                with open('login_response.html', 'w', encoding='utf-8') as f:
+                    f.write(response.text)
+
+                if 'login' not in response.url.lower():
+                    print("✓ Login successful (HTML response)")
+                    self.logged_in = True
+                    return True
+                else:
+                    print("✗ Login failed - still on login page")
+                    return False
+
         except requests.exceptions.RequestException as e:
-            print(f"file download request failed {e}")
+            print(f"Login failed: {e}")
+            return False
+
+    def download_report(self, bodega_name: str):
+        if not self.logged_in:
+            print("Not logged in. Please login first.")
             return None
 
-        if response:
-            print(response.content)
+        download_root_endpoint = os.getenv("CONTIFICO_DOWNLOAD_ENDPOINT")
+        download_report_url = self.base_url + download_root_endpoint
+        final_path = Path(f"../files/{bodega_name}")
+        final_path.mkdir(parents=True, exist_ok=True)
 
-        #filename= "reportTest.xlsx"
-        #with open(filename, "wb") as f:
-        #    f.write(response.content)
-        #print("saved file")
+        try:
 
+            response = self.session.get(download_report_url, params=self.params)
+            response.raise_for_status()
+
+            if response.content:
+                print(f"Downloaded {len(response.content)} bytes")
+
+
+                filename = "report.xlsx"
+                if 'Content-Disposition' in response.headers:
+                    import re
+                    cd = response.headers['Content-Disposition']
+                    filename_match = re.findall('filename="?([^"]+)"?', cd)
+                    if filename_match:
+                        filename = filename_match[0]
+
+                filepath = final_path / filename
+                with open(filepath, "wb") as f:
+                    f.write(response.content)
+                print(f"✓ Saved file: {filepath}")
+                return filepath
+
+        except requests.exceptions.RequestException as e:
+            print(f"File download request failed: {e}")
+            return None
 
 ws =  WebScrapper()
 ws.login()
+ws.download_report(bodega_name='Village')

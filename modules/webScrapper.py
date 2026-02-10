@@ -12,6 +12,7 @@ class WebScrapper:
     def __init__(self, params:dict = None, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"),  debug = False):
         self.username:str = username
         self.password:str = password
+        self.company_id:int = os.getenv("COMPANY_ID")
         self.params:dict = params
         self.base_url:str = os.getenv("CONTIFICO_BASE_ENDPOINT")
         self.session = requests.session()
@@ -88,21 +89,22 @@ class WebScrapper:
                 self._print_debug(f"Login JSON response: {login_json}")
 
                 if login_json.get('auth') == True:
-                    print("✓ Authentication successful")
+                    print("✓ First Step Authentication successful")
 
                     empresas = login_json.get('empresas', [])
                     if empresas:
                         self._print_debug(f"Companies available: {empresas}")
 
                         base_url = os.getenv("CONTIFICO_BASE_ENDPOINT")
-                        company_select_url = f"{base_url}/sistema/accounts/seleccionar_empresa/"
 
-                        company_data = {'empresa': 21590}
+                        company_data = {'empresa': self.company_id,
+                                        'username': self.username,
+                                        'password': self.password,}
 
-                        self._print_debug(f"Selecting company at: {company_select_url}")
+                        self._print_debug(f"Selecting company at: {login_url}")
 
                         company_response = self.session.post(
-                            company_select_url,
+                            login_url,
                             data=company_data,
                             allow_redirects=True
                         )
@@ -190,7 +192,6 @@ class WebScrapper:
             if response.content:
                 print(f"Downloaded {len(response.content)} bytes")
 
-
                 filename = "report.xlsx"
                 if 'Content-Disposition' in response.headers:
                     import re
@@ -209,6 +210,6 @@ class WebScrapper:
             print(f"File download request failed: {e}")
             return None
 
-ws =  WebScrapper()
+ws =  WebScrapper(debug=False)
 ws.login()
 ws.download_report(bodega_name='Village')

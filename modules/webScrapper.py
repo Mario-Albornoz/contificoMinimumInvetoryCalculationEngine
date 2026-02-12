@@ -1,6 +1,5 @@
 import os
 
-from urllib.parse import urlparse, urljoin
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -12,7 +11,7 @@ class WebScrapper:
     def __init__(self, params:dict = None, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"),  debug = False):
         self.username:str = username
         self.password:str = password
-        self.company_id:int = os.getenv("COMPANY_ID")
+        self.company_id:str = os.getenv("COMPANY_ID")
         self.params:dict = params
         self.base_url:str = os.getenv("CONTIFICO_BASE_ENDPOINT")
         self.session = requests.session()
@@ -174,18 +173,28 @@ class WebScrapper:
             print(f"Login failed: {e}")
             return False
 
-    def download_report(self, bodega_name: str):
+    def download_report(self, bodega_id: str, bodega_name: str, fecha_inicio:str, fecha_corte:str):
         if not self.logged_in:
             print("Not logged in. Please login first.")
             return None
 
-        download_root_endpoint = os.getenv("CONTIFICO_DOWNLOAD_ENDPOINT")
-        download_report_url = self.base_url + download_root_endpoint
+        download_root_endpoint = "/sistema/reportes/saldos_disponible/?pagina=1&excel=1&excel_personalizado=&excel_saldos_por_bodega=&pdf=&consulta=1&categoria_producto_id=&"
+        endpoint_params = """
+        fecha_inicio=01%2F01%2F2026&producto_id=&
+        fecha_corte=18%2F01%2F2026&
+        """
+
+        fecha_inicio_url_endpoint = f"fecha_inicio={fecha_inicio}&producto_id=&"
+        fecha_corte_url_endpoint = f"fecha_corte={fecha_corte}&"
+        bodega_url_endpoint = f"bodega_id={bodega_id}"
+
+        download_report_url = self.base_url + download_root_endpoint + fecha_inicio_url_endpoint + fecha_corte_url_endpoint + bodega_url_endpoint
         final_path = Path(f"../files/{bodega_name}")
         final_path.mkdir(parents=True, exist_ok=True)
 
         try:
 
+            print(self.session.cookies.get_dict())
             response = self.session.get(download_report_url, params=self.params)
             response.raise_for_status()
 
@@ -210,6 +219,8 @@ class WebScrapper:
             print(f"File download request failed: {e}")
             return None
 
+    def fetch_reports(self):
+        return None
+
 ws =  WebScrapper(debug=False)
 ws.login()
-ws.download_report(bodega_name='Village')

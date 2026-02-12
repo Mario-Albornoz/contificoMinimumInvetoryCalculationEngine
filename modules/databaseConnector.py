@@ -41,12 +41,20 @@ class databaseManager:
         )
         """
 
+        warehouse_table = """
+        CREATE TABLE IF NOT EXISTS warehouse(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name STRING NOT NULL,
+            contifico_id STRING,
+            code STRING NOT NULL,
+        """
+
         records_table = """
         CREATE TABLE IF NOT EXISTS period_record(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             start_date DATE NOT NULL,
             end_date DATE NOT NULL,
-            warehouse TEXT NOT NULL
+            FOREIGN KEY (warehouse_id) REFERENCES warehouse(id) ON DELETE CASCADE
         )
         """
 
@@ -71,6 +79,7 @@ class databaseManager:
         ]
 
         self.cursor.execute(product_table)
+        self.cursor.execute(warehouse_table)
         self.cursor.execute(records_table)
         self.cursor.execute(inventory_records)
 
@@ -99,17 +108,36 @@ class databaseManager:
 
         return result[0] if result else None
 
-    def insert_period_record(self, start_date, end_date, warehouse):
-        #FUnction returns id for the period record created
+    def upsert_warehouse(self, warehouse_name:str, warehouse_code:str, warehouse_contifico_id:str):
+        #Returns the id of the created warehouse
         query = """
-        INSERT INTO period_record (start_date, end_date, warehouse)
+        INSERT INTO warehouse (name, contifico_id, code)
         VALUES(?,?,?)
+        ON CONFLIT(code) DO UPDATE SET
+        name = excluded.name,
+        contifico_id = excluded.contifico_id,
+        code = excluded.code
         """
-        self.execute(query, (start_date, end_date, warehouse))
+        self.execute(query, params=(warehouse_name, warehouse_contifico_id, warehouse_code))
 
         result = self.cursor.execute(
-            "SELECT id FROM period_record WHERE start_date = ? AND end_date = ? AND warehouse = ?",
-            (start_date, end_date, warehouse)
+            "SELECT id FROM warehouse WHERE code = ?",
+            (warehouse_code)
+        ).fetchone()
+
+        return result[0] if result else None
+
+    def insert_period_record(self, start_date, end_date, warehouse_id):
+        #FUnction returns id for the period record created
+        query = """
+        INSERT INTO period_record (start_date, end_date, warehouse_id)
+        VALUES(?,?,?)
+        """
+        self.execute(query, (start_date, end_date, warehouse_id))
+
+        result = self.cursor.execute(
+            "SELECT id FROM period_record WHERE start_date = ? AND end_date = ? AND warehouse_id = ?",
+            (start_date, end_date, warehouse_id)
         ).fetchone()
 
         return result[0] if result else None

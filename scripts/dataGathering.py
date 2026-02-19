@@ -6,9 +6,8 @@ from modules.databaseConnector import databaseManager
 from modules.reportUtils import extract_data_from_report, get_value_from_sheet, parse_date_string
 from dotenv import load_dotenv
 
-db = databaseManager()
-db.initialize_schema()
-current_file_path = '../files/ReporteSaldosDisponibles.xlsx'
+db = databaseManager(db_path="../historicalInventory.db")
+current_file_path = '../files/Bodega Village/ReporteSaldosDisponibles.xlsx'
 load_dotenv()
 
 def gather_warehouse_data() -> list[dict]:
@@ -23,7 +22,7 @@ def gather_warehouse_data() -> list[dict]:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             print(response.content)
-
+            print(response.json())
             for bodega in response.json():
                 bodega_data = {
                     "codigo": bodega.get("codigo"),
@@ -51,13 +50,13 @@ def gather_data_from_report(warehouse_id:str):
     else:
         print("Date range not found in the spreadsheet")
 
-    period_id = db.insert_period_record(start_date, end_date, warehouse=warehouse_id)
+    period_id = db.insert_period_record(start_date, end_date, warehouse_id=warehouse_id)
 
     for product in products:
         product_id = db.upsert_product(product.product_name, product.product_code, unit_type=product.unit_type)
         db.insert_inventory_record(product_id, period_id, product.initial_stock, product.final_stock)
 
-    print("dataset generated sucessfuly")
+    print("Inserted report Successfully")
 
 
 def set_current_workbook(file_path):
@@ -69,6 +68,8 @@ def set_current_workbook(file_path):
 def gather_data():
     warehouse_data = gather_warehouse_data()
     for warehouse in warehouse_data:
-        warehouse_id = db.upsert_warehouse(warehouse['name'],  warehouse['code'], warehouse['contifico_id'])
+        warehouse_id = db.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
         gather_data_from_report(warehouse_id)
     db.close()
+
+gather_data()

@@ -17,7 +17,6 @@ def extract_data_from_report(ws):
             final_stock=row[final_stock_idx],
             unit_type=row[unit_type_idx]
         )
-        print(product)
 
         products.append(product)
     return products

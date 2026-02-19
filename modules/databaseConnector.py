@@ -46,7 +46,8 @@ class databaseManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name STRING NOT NULL,
             contifico_id STRING,
-            code STRING NOT NULL,
+            code STRING UNIQUE NOT NULL
+        )
         """
 
         records_table = """
@@ -54,6 +55,7 @@ class databaseManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             start_date DATE NOT NULL,
             end_date DATE NOT NULL,
+            warehouse_id INTEGER NOT NULL,
             FOREIGN KEY (warehouse_id) REFERENCES warehouse(id) ON DELETE CASCADE
         )
         """
@@ -88,6 +90,7 @@ class databaseManager:
             self.cursor.execute(idx)
 
         self.conn.commit()
+        print("Database Schema intilized")
 
     def upsert_product(self, product_name:str, product_code:str, unit_type:str, contifico_id=None):
         query = """
@@ -113,7 +116,7 @@ class databaseManager:
         query = """
         INSERT INTO warehouse (name, contifico_id, code)
         VALUES(?,?,?)
-        ON CONFLIT(code) DO UPDATE SET
+        ON CONFLICT(code) DO UPDATE SET
         name = excluded.name,
         contifico_id = excluded.contifico_id,
         code = excluded.code
@@ -122,7 +125,7 @@ class databaseManager:
 
         result = self.cursor.execute(
             "SELECT id FROM warehouse WHERE code = ?",
-            (warehouse_code)
+            (warehouse_code,)
         ).fetchone()
 
         return result[0] if result else None

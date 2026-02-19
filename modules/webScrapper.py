@@ -8,11 +8,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class WebScrapper:
-    def __init__(self, params:dict = None, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"),  debug = False):
+    def __init__(self, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"),  debug = False):
         self.username:str = username
         self.password:str = password
         self.company_id:str = os.getenv("COMPANY_ID")
-        self.params:dict = params
         self.base_url:str = os.getenv("CONTIFICO_BASE_ENDPOINT")
         self.session = requests.session()
         self.logged_in: bool = False
@@ -173,29 +172,25 @@ class WebScrapper:
             print(f"Login failed: {e}")
             return False
 
-    def download_report(self, bodega_id: str, bodega_name: str, fecha_inicio:str, fecha_corte:str):
+    def download_report(self, bodega_id: str, bodega_name: str, fecha_inicio:datetime, fecha_corte:datetime):
         if not self.logged_in:
             print("Not logged in. Please login first.")
             return None
+        parsed_inicial_date = self.parse_date(fecha_inicio)
+        parsed_final_date = self.parse_date(fecha_corte)
 
         download_root_endpoint = "/sistema/reportes/saldos_disponible/?pagina=1&excel=1&excel_personalizado=&excel_saldos_por_bodega=&pdf=&consulta=1&categoria_producto_id=&"
-        endpoint_params = """
-        fecha_inicio=01%2F01%2F2026&producto_id=&
-        fecha_corte=18%2F01%2F2026&
-        """
+        endpoint_params = f"fecha_inicio={parsed_inicial_date}&producto_id=&fecha_corte={parsed_final_date}&bodega_id=64035"
 
-        fecha_inicio_url_endpoint = f"fecha_inicio={fecha_inicio}&producto_id=&"
-        fecha_corte_url_endpoint = f"fecha_corte={fecha_corte}&"
-        bodega_url_endpoint = f"bodega_id={bodega_id}"
-
-        download_report_url = self.base_url + download_root_endpoint + fecha_inicio_url_endpoint + fecha_corte_url_endpoint + bodega_url_endpoint
+        download_report_url = self.base_url + download_root_endpoint + endpoint_params
         final_path = Path(f"../files/{bodega_name}")
         final_path.mkdir(parents=True, exist_ok=True)
 
         try:
 
             print(self.session.cookies.get_dict())
-            response = self.session.get(download_report_url, params=self.params)
+            print(f"making request to url:{download_report_url}")
+            response = self.session.get(download_report_url)
             response.raise_for_status()
 
             if response.content:
@@ -219,8 +214,49 @@ class WebScrapper:
             print(f"File download request failed: {e}")
             return None
 
-    def fetch_reports(self):
+    def fetch_reports_by_range(self, start_date:datetime, end_date:datetime, bodegas : list):
+        """
+        Fetches reports weekly forom start_date to end_date
+        :param start_date: start data collection from this date
+        :param end_date: end of data collection date
+        :param bodegas: list of warehouses with id and name
+        :return:
+        """
+
+        reports = []
+        current_date = start_date
+
+        while current_date < end_date:
+            week_end = min(current_date + timedelta(days=7), end_date)
+
+            for warehouse in bodegas:
+                warehouse_id = warehouse.get('codigo')
+                warehouse_name = warehouse.get('nombre')
+                filepath = self.download_report(bodega_name=warehouse_name, bodega_id=warehouse_id, fecha_inicio=current_date, fecha_corte=week_end)
+
+                if filepath:
+                    reports.append({
+                        'bodega': warehouse_name,
+                        'bodega_id': warehouse_id,
+                        'fecha_inicio': current_date,
+                        'fecha_corte': week_end,
+                        'filepath': filepath
+                    })
+                else:
+                    print(f'Failed to download report {warehouse_name}: {current_date} - {week_end}')
+
+                current_date = week_end
+
+            return reports
+
+
         return None
+
+    def parse_date(self, date:datetime) -> str:
+        return date.strftime("%d%%2F%m%%2F%Y")
+
+
 
 ws =  WebScrapper(debug=False)
 ws.login()
+ws.download_report(bodega_id="BOD001", bodega_name="Bodega Village", fecha_inicio=datetime(2026, 1, 1), fecha_corte=datetime(2026, 1, 7))

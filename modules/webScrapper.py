@@ -172,7 +172,7 @@ class WebScrapper:
             print(f"Login failed: {e}")
             return False
 
-    def download_report(self, bodega_id: str, bodega_name: str, fecha_inicio:datetime, fecha_corte:datetime):
+    def download_report(self, bodega_id: int, bodega_name: str, fecha_inicio:datetime, fecha_corte:datetime):
         if not self.logged_in:
             print("Not logged in. Please login first.")
             return None
@@ -180,7 +180,7 @@ class WebScrapper:
         parsed_final_date = self.parse_date(fecha_corte)
 
         download_root_endpoint = "/sistema/reportes/saldos_disponible/?pagina=1&excel=1&excel_personalizado=&excel_saldos_por_bodega=&pdf=&consulta=1&categoria_producto_id=&"
-        endpoint_params = f"fecha_inicio={parsed_inicial_date}&producto_id=&fecha_corte={parsed_final_date}&bodega_id=64035"
+        endpoint_params = f"fecha_inicio={parsed_inicial_date}&producto_id=&fecha_corte={parsed_final_date}&bodega_id={str(bodega_id)}"
 
         download_report_url = self.base_url + download_root_endpoint + endpoint_params
         final_path = Path(f"../files/{bodega_name}")
@@ -254,7 +254,6 @@ class WebScrapper:
 
     def parse_date(self, date:datetime) -> str:
         return date.strftime("%d%%2F%m%%2F%Y")
-
 
 
 ws =  WebScrapper(debug=False)

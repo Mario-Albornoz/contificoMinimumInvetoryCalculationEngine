@@ -3,15 +3,15 @@ import requests
 import os
 
 from modules.databaseConnector import databaseManager
-from modules.reportUtils import extract_data_from_report, get_value_from_sheet, parse_date_string
+from modules.reportUtils import extract_data_from_report, get_value_from_sheet, parse_date_string, gather_data_from_report 
 from dotenv import load_dotenv
 
 db = databaseManager(db_path="../historicalInventory.db")
 current_file_path = '../files/Bodega Village/ReporteSaldosDisponibles.xlsx'
 load_dotenv()
 
-def gather_warehouse_data() -> list[dict]:
-    contifico_api_key = os.getenv("CONTIFICO_API_KEY")
+def gather_warehouse_data_from_api() -> list[dict]:
+    contifico_api_key: str = os.getenv("CONTIFICO_API_KEY")
     url: str = f"https://api.contifico.com/sistema/api/v1/bodega"
     headers: dict = {
         "Authorization": contifico_api_key,
@@ -21,8 +21,6 @@ def gather_warehouse_data() -> list[dict]:
     try:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            print(response.content)
-            print(response.json())
             for bodega in response.json():
                 bodega_data = {
                     "codigo": bodega.get("codigo"),
@@ -39,37 +37,75 @@ def gather_warehouse_data() -> list[dict]:
 
     return bodegas_data
 
-def gather_data_from_report(warehouse_id:str):
-    ws = set_current_workbook(current_file_path)
-
-    date_string = get_value_from_sheet('Rango de Fechas', ws)
-    products = extract_data_from_report(ws)
-
-    if date_string:
-        start_date, end_date = parse_date_string(date_string)
-    else:
-        print("Date range not found in the spreadsheet")
-
-    period_id = db.insert_period_record(start_date, end_date, warehouse_id=warehouse_id)
-
-    for product in products:
-        product_id = db.upsert_product(product.product_name, product.product_code, unit_type=product.unit_type)
-        db.insert_inventory_record(product_id, period_id, product.initial_stock, product.final_stock)
-
-    print("Inserted report Successfully")
-
-
-def set_current_workbook(file_path):
-    wb = openpyxl.load_workbook(file_path)
-    ws = wb.active
-
-    return ws
-
-def gather_data():
-    warehouse_data = gather_warehouse_data()
+def populate_warehouse_tables():
+    warehouse_data = gather_warehouse_data_from_api()
     for warehouse in warehouse_data:
         warehouse_id = db.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
-        gather_data_from_report(warehouse_id)
+        gather_data_from_report(wb, warehouse_id)
+    db.execute("""
+    UPDATE warehouse
+    SET internal_contifico_id = 64035
+    WHERE name = 'Bodega Village'
+    """)
+    db.execute("""
+            UPDATE warehouse
+            SET internal_contifico_id = 64730
+            WHERE name = 'Bodega Riocentro Ceibos'
+            """)
+    db.execute("""
+        UPDATE warehouse
+        SET internal_contifico_id = 87729
+        WHERE name = 'Bodega Mall del Sol'
+        """)
     db.close()
 
-gather_data()
+def generate_data_set_with_date_range( start_date:datetime, end_date:datetime, bodegas : list):
+        """
+        Fetches reports weekly forom start_date to end_date
+        :param start_date: start data collection from this date
+        :param end_date: end of data collection date
+        :param bodegas: list of warehouses with id and name
+        :return:
+        """
+
+        scrapper = webscrapper()
+
+        reports = []
+        current_date = start_date
+
+        while current_date < end_date:
+            week_end = min(current_date + timedelta(days=7), end_date)
+
+            for warehouse in bodegas:
+                warehouse_id = warehouse.get('codigo')
+                warehouse_name = warehouse.get('nombre')
+                filepath = scrapper.download_report(bodega_name=warehouse_name, bodega_id=warehouse_id, fecha_inicio=current_date, fecha_corte=week_end)
+
+                if filepath:
+                    reports.append({
+                        'bodega': warehouse_name,
+                        'bodega_id': warehouse_id,
+                        'fecha_inicio': current_date,
+                        'fecha_corte': week_end,
+                        'filepath': filepath
+                    })
+                #TODO: download information from report and delete to avoid overfollowing with reports
+                """
+                Currently we will download the reports everytime we genearte the dataset since the company is internally cleaning discontinued products
+                therefore data is bound to change. Therefore we for the final product we will hold a state in our database we will reconstructed it based
+                on the reports downloaded. (further research is needed to confirm this architectural desition as of 23-03-2026)kk
+                """
+                else:
+                    print(f'Failed to download report {warehouse_name}: {current_date} - {week_end}')
+
+                current_date = week_end
+
+            return reports
+
+def parse_date(date:datetime) -> str:
+    return date.strftime("%d%%2F%m%%2F%Y")
+
+def generate_dataset():
+    return None
+
+populate_warehouse_tables()

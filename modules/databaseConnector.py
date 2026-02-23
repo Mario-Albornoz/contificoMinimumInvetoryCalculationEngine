@@ -41,12 +41,20 @@ class databaseManager:
         )
         """
 
+        """id: internal primary key
+        name:name of warehouse
+        contifico_id: id from contifico_api
+        code: code from contifico_api
+        internal_contifico_id: id used for retrivin excel report (saldos disponibles)
+        """
+
         warehouse_table = """
         CREATE TABLE IF NOT EXISTS warehouse(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name STRING NOT NULL,
             contifico_id STRING,
-            code STRING UNIQUE NOT NULL
+            code STRING UNIQUE NOT NULL,
+            internal_contifico_id INTEGER UNIQUE
         )
         """
 

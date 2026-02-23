@@ -39,3 +39,30 @@ def parse_date_string(date_string):
     end_date = dates[1].strip()
 
     return start_date, end_date
+
+def gather_data_from_report(wb, warehouse_id:str):
+    ws = set_current_workbook(wb, current_file_path)
+
+    date_string = get_value_from_sheet('Rango de Fechas', ws)
+    products = extract_data_from_report(ws)
+
+    if date_string:
+        start_date, end_date = parse_date_string(date_string)
+    else:
+        print("Date range not found in the spreadsheet")
+
+    period_id = db.insert_period_record(start_date, end_date, warehouse_id=warehouse_id)
+
+    for product in products:
+        product_id = db.upsert_product(product.product_name, product.product_code, unit_type=product.unit_type)
+        db.insert_inventory_record(product_id, period_id, product.initial_stock, product.final_stock)
+
+    print("Inserted report Successfully")
+
+
+def set_current_workbook(wb, file_path):
+    wb = openpyxl.load_workbook(file_path)
+    ws = wb.active
+
+    return ws
+

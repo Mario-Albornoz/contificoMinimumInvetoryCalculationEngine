@@ -2,15 +2,16 @@ import sqlite3
 from sqlite3 import Cursor
 from sqlite3 import Connection
 
+from scripts.dataGathering import gather_warehouse_data_from_api
 
+#TODO: create property to assert slef.conn and self.cursor are not None
 class databaseManager:
     def __init__(self, db_path='historicalInventory.db'):
         self.db_path = db_path
-        self.cursor: Cursor | None = None
-        self.conn: Connection | None = None
+        self.conn: Connection =  sqlite3.connect(self.db_path)        
+        self.cursor: Cursor = self.conn.cursor()
         self.initialize_schema()
-
-    def connect(self) -> tuple[Cursor, Connection]:
+    def connect(self) -> tuple[Cursor | None, Connection]:
         if self.conn is None:
             self.conn = sqlite3.connect(self.db_path)
             self.cursor = self.conn.cursor()
@@ -19,17 +20,20 @@ class databaseManager:
     def close(self):
         if self.conn:
             self.conn.close()
-            self.conn = None
-            self.cursor = None
+            self.conn = sqlite3.connect(self.db_path)
+            self.cursor = self.conn.cursor()
 
     def execute(self, query, params = ()):
         self.connect()
-        self.cursor.execute(query, params)
-        self.conn.commit()
+        assert self.cursor is not None
+        self.cursor.execute(query, params) 
+        assert self.conn is not None
+        self.conn.commit() 
         return self.cursor
 
     def initialize_schema(self) -> None:
         self.connect()
+        assert self.cursor and self.conn is not None
 
         product_table = """
         CREATE TABLE IF NOT EXISTS product(
@@ -88,6 +92,7 @@ class databaseManager:
             "CREATE INDEX IF NOT EXISTS idx_inventory_record ON inventory_records(period_record_id)",
         ]
 
+        assert self.cursor is not None
         self.cursor.execute(product_table)
         self.cursor.execute(warehouse_table)
         self.cursor.execute(records_table)
@@ -97,6 +102,7 @@ class databaseManager:
         for idx in index:
             self.cursor.execute(idx)
 
+        assert self.conn is not None
         self.conn.commit()
         print("Database Schema intilized")
 
@@ -204,3 +210,25 @@ class databaseManager:
                 initial_stock=product['initial_stock'],
                 final_stock=product['final_stock']
             )
+    def populate_warehouse_tables(self):
+        warehouse_data = gather_warehouse_data_from_api()
+        for warehouse in warehouse_data:
+            self.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
+        self.execute("""
+        UPDATE warehouse
+        SET internal_contifico_id = 64035
+        WHERE name = 'Bodega Village'
+        """)
+        self.execute("""
+                UPDATE warehouse
+                SET internal_contifico_id = 64730
+                WHERE name = 'Bodega Riocentro Ceibos'
+                """)
+        self.execute("""
+            UPDATE warehouse
+            SET internal_contifico_id = 87729
+            WHERE name = 'Bodega Mall del Sol'
+            """)
+        self.close()
+    
+    

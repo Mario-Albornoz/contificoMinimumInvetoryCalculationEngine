@@ -24,6 +24,7 @@ class WebScrapper:
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
         })
+        self.login()
 
     def _print_debug(self, message:str):
         if self.debug:
@@ -172,7 +173,7 @@ class WebScrapper:
             print(f"Login failed: {e}")
             return False
 
-    def download_report(self, bodega_id: int, bodega_name: str, fecha_inicio:datetime, fecha_corte:datetime):
+    def download_report(self, bodega_id: int, bodega_name: str, fecha_inicio:datetime, fecha_corte:datetime) -> str | None:
         if not self.logged_in:
             print("Not logged in. Please login first.")
             return None
@@ -214,48 +215,9 @@ class WebScrapper:
             print(f"File download request failed: {e}")
             return None
 
-    def fetch_reports_by_range(self, start_date:datetime, end_date:datetime, bodegas : list):
-        """
-        Fetches reports weekly forom start_date to end_date
-        :param start_date: start data collection from this date
-        :param end_date: end of data collection date
-        :param bodegas: list of warehouses with id and name
-        :return:
-        """
-
-        reports = []
-        current_date = start_date
-
-        while current_date < end_date:
-            week_end = min(current_date + timedelta(days=7), end_date)
-
-            for warehouse in bodegas:
-                warehouse_id = warehouse.get('codigo')
-                warehouse_name = warehouse.get('nombre')
-                filepath = self.download_report(bodega_name=warehouse_name, bodega_id=warehouse_id, fecha_inicio=current_date, fecha_corte=week_end)
-
-                if filepath:
-                    reports.append({
-                        'bodega': warehouse_name,
-                        'bodega_id': warehouse_id,
-                        'fecha_inicio': current_date,
-                        'fecha_corte': week_end,
-                        'filepath': filepath
-                    })
-                else:
-                    print(f'Failed to download report {warehouse_name}: {current_date} - {week_end}')
-
-                current_date = week_end
-
-            return reports
-
-
-        return None
-
-    def parse_date(self, date:datetime) -> str:
+    def parse_date(self, date: datetime) -> str:
         return date.strftime("%d%%2F%m%%2F%Y")
 
-
-ws =  WebScrapper(debug=False)
-ws.login()
-ws.download_report(bodega_id="BOD001", bodega_name="Bodega Village", fecha_inicio=datetime(2026, 1, 1), fecha_corte=datetime(2026, 1, 7))
+#ws =  WebScrapper(debug=False)
+#ws.login()
+#ws.download_report(bodega_id="BOD001", bodega_name="Bodega Village", fecha_inicio=datetime(2026, 1, 1), fecha_corte=datetime(2026, 1, 7))

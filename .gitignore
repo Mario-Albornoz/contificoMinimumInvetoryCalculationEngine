@@ -5,3 +5,4 @@ files/
 .DS_Store
 __pycache__
 *.db
+pyrightconfig.json

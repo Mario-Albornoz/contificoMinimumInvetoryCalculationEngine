@@ -1,6 +1,10 @@
+from datetime import datetime
+
+import openpyxl
+
 from modules.product import ProductData
 
-def extract_data_from_report(ws):
+def extract_products_from_report(ws) -> list:
     headers = [cell.value for cell in ws[6]]
     products = []
     for row in ws.iter_rows(min_row=7, values_only=True):
@@ -40,11 +44,11 @@ def parse_date_string(date_string):
 
     return start_date, end_date
 
-def gather_data_from_report(wb, warehouse_id:str):
-    ws = set_current_workbook(wb, current_file_path)
+def gather_data_from_report(warehouse_id:str, current_file_path:str, db):
+    ws = set_current_workbook(current_file_path)
 
     date_string = get_value_from_sheet('Rango de Fechas', ws)
-    products = extract_data_from_report(ws)
+    products = extract_products_from_report(ws)
 
     if date_string:
         start_date, end_date = parse_date_string(date_string)
@@ -59,8 +63,10 @@ def gather_data_from_report(wb, warehouse_id:str):
 
     print("Inserted report Successfully")
 
+def parse_date(date: datetime) -> str:
+    return date.strftime("%d%%2F%m%%2F%Y")
 
-def set_current_workbook(wb, file_path):
+def set_current_workbook(file_path):
     wb = openpyxl.load_workbook(file_path)
     ws = wb.active
 

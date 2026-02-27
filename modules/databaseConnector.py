@@ -34,7 +34,7 @@ class databaseManager:
         product_table = """
         CREATE TABLE IF NOT EXISTS product(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_name TEXT UNIQUE NOT NULL,
+            product_name TEXT NOT NULL,
             product_code TEXT UNIQUE NOT NULL,
             contifico_id TEXT UNIQUE,
             unit_type TEXT NOT NULL
@@ -110,7 +110,18 @@ class databaseManager:
         contifico_id = excluded.contifico_id
         """
 
-        self.execute(query, params=(product_name, product_code, unit_type, contifico_id))
+        try:
+            self.execute(query, params=(product_name, product_code, unit_type, contifico_id))
+        except sqlite3.IntegrityError as e:
+            print(f"IntegrityError: {e}")
+            print(f"  Incoming -> name: {product_name}, code: {product_code}")
+            existing = self.cursor.execute(
+                "SELECT * FROM product WHERE product_code = ? OR product_name = ?",
+                (product_code, product_name)
+            ).fetchall()
+            print(f"  Conflicting rows in DB: {existing}")
+            raise
+
 
         result = self.cursor.execute(
             "SELECT id FROM product WHERE product_code = ?",
@@ -137,6 +148,19 @@ class databaseManager:
         ).fetchone()
 
         return result[0] if result else None
+
+    def getStoreWarehouse(self):
+        warehouses = []
+        query = """
+        SELECT * FROM warehouse
+        WHERE name in ("Bodega Village", "Bodega Riocentro Ceibos", "Bodega Mall del Sol")
+        """
+        self.cursor.execute(query)
+        columns = [col[0] for col in self.cursor.description]
+        for row in self.cursor.fetchall():
+            warehouses.append(dict(zip(columns, row)))
+
+        return warehouses
 
     def insert_period_record(self, start_date, end_date, warehouse_id):
         #FUnction returns id for the period record created

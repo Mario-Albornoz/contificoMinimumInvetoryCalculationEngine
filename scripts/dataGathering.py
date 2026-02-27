@@ -1,17 +1,18 @@
-import openpyxl
+from datetime import datetime, timedelta
+
 import requests
 import os
 
 from modules.databaseConnector import databaseManager
-from modules.reportUtils import extract_data_from_report, get_value_from_sheet, parse_date_string, gather_data_from_report 
+from modules.webScrapper import  WebScrapper
+from modules.reportUtils import  gather_data_from_report
 from dotenv import load_dotenv
 
 db = databaseManager(db_path="../historicalInventory.db")
-current_file_path = '../files/Bodega Village/ReporteSaldosDisponibles.xlsx'
 load_dotenv()
 
 def gather_warehouse_data_from_api() -> list[dict]:
-    contifico_api_key: str = os.getenv("CONTIFICO_API_KEY")
+    contifico_api_key: str | None = os.getenv("CONTIFICO_API_KEY")
     url: str = f"https://api.contifico.com/sistema/api/v1/bodega"
     headers: dict = {
         "Authorization": contifico_api_key,
@@ -40,8 +41,7 @@ def gather_warehouse_data_from_api() -> list[dict]:
 def populate_warehouse_tables():
     warehouse_data = gather_warehouse_data_from_api()
     for warehouse in warehouse_data:
-        warehouse_id = db.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
-        gather_data_from_report(wb, warehouse_id)
+        db.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
     db.execute("""
     UPDATE warehouse
     SET internal_contifico_id = 64035
@@ -67,9 +67,12 @@ def generate_data_set_with_date_range( start_date:datetime, end_date:datetime, b
         :param bodegas: list of warehouses with id and name
         :return:
         """
-
-        scrapper = webscrapper()
-
+        """
+            Currently we will download the reports everytime we genearte the dataset since the company is internally cleaning discontinued products
+            therefore data is bound to change. Therefore for the final product we will hold not hold state in our database we will reconstructed it based
+            on the reports downloaded. (further research is needed to confirm this architectural desition as of 23-03-2026)
+        """
+        scrapper = WebScrapper()
         reports = []
         current_date = start_date
 
@@ -77,35 +80,37 @@ def generate_data_set_with_date_range( start_date:datetime, end_date:datetime, b
             week_end = min(current_date + timedelta(days=7), end_date)
 
             for warehouse in bodegas:
-                warehouse_id = warehouse.get('codigo')
-                warehouse_name = warehouse.get('nombre')
+                warehouse_id = warehouse['internal_contifico_id']
+                warehouse_name = warehouse['name']
                 filepath = scrapper.download_report(bodega_name=warehouse_name, bodega_id=warehouse_id, fecha_inicio=current_date, fecha_corte=week_end)
 
                 if filepath:
                     reports.append({
-                        'bodega': warehouse_name,
+                       'bodega': warehouse_name,
                         'bodega_id': warehouse_id,
                         'fecha_inicio': current_date,
                         'fecha_corte': week_end,
                         'filepath': filepath
                     })
-                #TODO: download information from report and delete to avoid overfollowing with reports
-                """
-                Currently we will download the reports everytime we genearte the dataset since the company is internally cleaning discontinued products
-                therefore data is bound to change. Therefore we for the final product we will hold a state in our database we will reconstructed it based
-                on the reports downloaded. (further research is needed to confirm this architectural desition as of 23-03-2026)kk
-                """
+                    print(f'starting to gather data from file{filepath}')
+                    gather_data_from_report(warehouse_id, filepath, db)
+
+                    os.remove(filepath)
                 else:
                     print(f'Failed to download report {warehouse_name}: {current_date} - {week_end}')
 
                 current_date = week_end
+                print(current_date)
 
-            return reports
-
-def parse_date(date:datetime) -> str:
-    return date.strftime("%d%%2F%m%%2F%Y")
+        return reports
 
 def generate_dataset():
+    print('gathering stores')
+    stores = db.getStoreWarehouse()
+    print("populating warehouse tables")
+    populate_warehouse_tables()
+    print("starting to generate data set....")
+    generate_data_set_with_date_range(start_date=datetime(2022, 1, 1), end_date=datetime(2026, 2, 1), bodegas=stores)
     return None
 
-populate_warehouse_tables()
+generate_dataset()

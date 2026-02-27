@@ -4,11 +4,11 @@ import requests
 import os
 
 from modules.databaseConnector import databaseManager
-from modules.webScrapper import  WebScrapper
-from modules.reportUtils import  gather_data_from_report
+from modules.data.webScrapper import  WebScrapper
+from modules.data.reportUtils import  gather_data_from_report
 from dotenv import load_dotenv
 
-db = databaseManager(db_path="../historicalInventory.db")
+db = databaseManager(db_path="historicalInventory.db")
 load_dotenv()
 
 def gather_warehouse_data_from_api() -> list[dict]:

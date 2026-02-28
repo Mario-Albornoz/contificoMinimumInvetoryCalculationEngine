@@ -13,6 +13,7 @@ class databaseManager:
         self.build_schema:bool=build_schema
         if self.build_schema:
             self.initialize_schema()
+
     def connect(self) -> tuple[Cursor | None, Connection]:
         if self.conn is None:
             self.conn = sqlite3.connect(self.db_path)

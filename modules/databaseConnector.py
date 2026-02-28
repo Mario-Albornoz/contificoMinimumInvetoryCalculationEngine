@@ -6,11 +6,13 @@ from scripts.dataGathering import gather_warehouse_data_from_api
 
 #TODO: create property to assert slef.conn and self.cursor are not None
 class databaseManager:
-    def __init__(self, db_path='historicalInventory.db'):
+    def __init__(self, db_path='historicalInventory.db', build_schema:bool=True):
         self.db_path = db_path
         self.conn: Connection =  sqlite3.connect(self.db_path)        
         self.cursor: Cursor = self.conn.cursor()
-        self.initialize_schema()
+        self.build_schema:bool=build_schema
+        if self.build_schema:
+            self.initialize_schema()
     def connect(self) -> tuple[Cursor | None, Connection]:
         if self.conn is None:
             self.conn = sqlite3.connect(self.db_path)

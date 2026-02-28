@@ -2,16 +2,9 @@ import os
 import requests
 from dotenv import load_dotenv
 
-
-
-def main():
-    load_dotenv()
-    print(get_data())
-
-
 def get_data(request_path:str = "bodega/"):
     contifico_api_key = os.getenv("CONTIFICO_API_KEY")
-    url:str = f"https://api.contifico.com/sistema/api/v1/{request_path}"
+    url:str = f"https://api.contifico.com/sistema/api/v2/{request_path}"
     headers:dict = {
         "Authorization": contifico_api_key,
     }
@@ -29,6 +22,10 @@ def get_data(request_path:str = "bodega/"):
 
 def get_remaining_inventory_per_month():
    return None
+
+def main():
+    load_dotenv()
+    print(get_data(request_path="producto/<ID>/stock/"))
 
 if __name__ == '__main__':
     main()

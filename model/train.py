@@ -3,8 +3,11 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from pandas import DataFrame
 from modules.databaseConnector import databaseManager
+from sqlite.queries import get_records_for_data_frame_query  
 
-def get_dataFrame() -> tuple: #returns test_df, train_df
+
+
+def fetch_dataframe() -> DataFrame: #returns test_df, train_df
     """
     get 
         "product_confico_id":"BQ9pdBB26H52dasdI"
@@ -14,25 +17,20 @@ def get_dataFrame() -> tuple: #returns test_df, train_df
         "date":"2026-02-23"
     from database for every inventory_record and place the result in a pandas dataframe and splits it into train and test dataframes
     """
-    query = """
-        SELECT
-            p.contifico_id as product_id,
-            w.name as warehouse_name,
-            w.contifico_id as warehouse_contifico_id,
-            ir.initial_stock as initial_stock,
-            ir.final_stock as final_stock,
-            pr.start_date as start_date,
-        FROM  inventory_records ir,
-        INNER JOIN product p ON ir.product_id = p.id
-        INNER JOIN period_record pr ON ir.period_record_id = pr.id 
-        INNER JOIN warehouse w ON ir.warehouse_id = w.id 
-            """
-
+    query = get_records_for_data_frame_query
     db = databaseManager(build_schema=False)
     df = pd.read_sql_query(query, db.conn)
+
+    return df 
+
+def prepare_dataframes(df) -> tuple:
+    df['demand'] = df['initial_stock'] - df['final_stock']
     df['week'] = pd.to_datetime(df['start_date'])
+    df['week_of_year'] = df['week'].dt.isolocalendar().week
+    df['month'] = df['week'].dt.month
     df = df.drop(columns=['start_date'])
-    train_df, test_df = train_test_split(df, test_size=0.2)
+    train_df = df[df['week'] < df['week'].max() - pd.Timedelta(weeks=12)]
+    test_df = df[df['week'] >= df['week'].max() - pd.Timedelta(weeks=12)]
 
     return train_df, test_df
 

@@ -64,3 +64,16 @@ records_table_schema_query = """
         )
         """
 
+inventory_records_table_schema_query = """
+        CREATE TABLE IF NOT EXISTS inventory_records(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        period_record_id INTEGER NOT NULL,
+        initial_stock DOUBLE NOT NULL,
+        final_stock DOUBLE NOT NULL,
+        FOREIGN KEY (product_id) REFERENCES product(id) ON DELETE CASCADE,
+        FOREIGN KEY (period_record_id) REFERENCES period_record(id) ON DELETE CASCADE,
+        UNIQUE (product_id, period_record_id)
+        )
+        """
+

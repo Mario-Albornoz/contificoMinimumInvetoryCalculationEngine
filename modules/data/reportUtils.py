@@ -2,7 +2,7 @@ from datetime import datetime
 
 import openpyxl
 
-from modules.product import ProductData
+from modules.data.product import ProductData
 
 def extract_products_from_report(ws) -> list:
     headers = [cell.value for cell in ws[6]]
@@ -55,7 +55,7 @@ def gather_data_from_report(warehouse_id:str, current_file_path:str, db):
     else:
         print("Date range not found in the spreadsheet")
 
-    period_id = db.insert_period_record(start_date, end_date, warehouse_id=warehouse_id)
+    period_id = db.insert_period_record(start_date, end_date=end_date, warehouse_id=warehouse_id)
 
     for product in products:
         product_id = db.upsert_product(product.product_name, product.product_code, unit_type=product.unit_type)

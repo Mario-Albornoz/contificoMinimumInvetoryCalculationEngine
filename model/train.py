@@ -36,6 +36,9 @@ def get_dataFrame() -> tuple: #returns test_df, train_df
 
     return train_df, test_df
 
+#TODO: Set up main training function
+#TODO: Create classes for model and loss function
+#TODO Implement current non ai solutions
 def train():
     return None
 

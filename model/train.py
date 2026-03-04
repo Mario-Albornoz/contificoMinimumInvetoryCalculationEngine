@@ -26,7 +26,7 @@ def fetch_dataframe() -> DataFrame: #returns test_df, train_df
 def prepare_dataframes(df) -> tuple:
     df['demand'] = df['initial_stock'] - df['final_stock']
     df['week'] = pd.to_datetime(df['start_date'])
-    df['week_of_year'] = df['week'].dt.isolocalendar().week
+    df['week_of_year'] = df['week'].dt.isocalendar().week
     df['month'] = df['week'].dt.month
     df = df.drop(columns=['start_date'])
     train_df = df[df['week'] < df['week'].max() - pd.Timedelta(weeks=12)]
@@ -34,9 +34,13 @@ def prepare_dataframes(df) -> tuple:
 
     return train_df, test_df
 
+#TODO: set up data visualization
+#TODO: Implement current non ai solutions
+
+#TODO: set up model logic
 #TODO: Set up main training function
+#TODO: SET up metrics
 #TODO: Create classes for model and loss function
-#TODO Implement current non ai solutions
 def train():
     return None
 

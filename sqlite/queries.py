@@ -1,14 +1,14 @@
 get_records_for_data_frame_query = """SELECT
-                                    p.contifico_id as product_id,
+                                    p.contifico_id as product_contifico_id,
                                     w.name as warehouse_name,
                                     w.contifico_id as warehouse_contifico_id,
                                     ir.initial_stock as initial_stock,
                                     ir.final_stock as final_stock,
-                                    pr.start_date as start_date,
-                                FROM  inventory_records ir,
-                                INNER JOIN product p ON ir.product_id = p.id
-                                INNER JOIN period_record pr ON ir.period_record_id = pr.id 
-                                INNER JOIN warehouse w ON ir.warehouse_id = w.id"""
+                                    pr.start_date as start_date
+                                FROM  inventory_records ir
+                                LEFT JOIN product p ON ir.product_id = p.id
+                                LEFT JOIN period_record pr ON ir.period_record_id = pr.id 
+                                LEFT JOIN warehouse w ON pr.warehouse_id = w.id"""
 
 insert_inventory_records_query  = """
                                     INSERT INTO inventory_records 

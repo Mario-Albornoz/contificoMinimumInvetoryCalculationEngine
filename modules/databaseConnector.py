@@ -1,8 +1,9 @@
 import sqlite3
 from sqlite3 import Cursor
 from sqlite3 import Connection
+
 from sqlite.queries import insert_inventory_records_query, upsert_warehouse_query, product_table_schema_query, warehouse_table_schema_query, records_table_schema_query, inventory_records_table_schema_query
-from scripts.dataGathering import gather_warehouse_data_from_api
+from modules.data.contificoConnector import ConfiticoAPIClient
 
 #TODO: create property to assert slef.conn and self.cursor are not None
 class databaseManager:
@@ -11,8 +12,9 @@ class databaseManager:
         self.conn: Connection =  sqlite3.connect(self.db_path)        
         self.cursor: Cursor = self.conn.cursor()
         self.build_schema:bool=build_schema
-        if self.build_schema:
+        if self.build_schema == True:
             self.initialize_schema()
+        self.client = ConfiticoAPIClient()
 
     def connect(self) -> tuple[Cursor | None, Connection]:
         if self.conn is None:
@@ -58,6 +60,8 @@ class databaseManager:
 
         for idx in index:
             self.cursor.execute(idx)
+
+        self.populate_warehouse_tables()
 
         assert self.conn is not None
         self.conn.commit()
@@ -154,7 +158,7 @@ class databaseManager:
                 final_stock=product['final_stock']
             )
     def populate_warehouse_tables(self):
-        warehouse_data = gather_warehouse_data_from_api()
+        warehouse_data = self.client.warehouses.gather_warehouse_data_from_api()
         for warehouse in warehouse_data:
             self.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
         self.execute("""
@@ -173,5 +177,15 @@ class databaseManager:
             WHERE name = 'Bodega Mall del Sol'
             """)
         self.close()
-    
-    
+
+    def enrich_products_with_contifico_id(self):
+        product_response = self.client.products.get_all_products()
+        product_data = product_response.get('results', [])
+        for product in product_data:
+            self.execute("""
+                    UPDATE product
+                    SET contifico_id = ?
+                    WHERE codigo = ?
+                         """, (product.get('id'),product.get('codigo'))
+                         )
+        return None

@@ -1,65 +1,13 @@
 from datetime import datetime, timedelta
 
-import requests
 import os
 
-from modules.databaseConnector import databaseManager
 from modules.data.webScrapper import  WebScrapper
 from modules.data.reportUtils import  gather_data_from_report
-from dotenv import load_dotenv
 
-db = databaseManager(db_path="historicalInventory.db")
-load_dotenv()
 
-def gather_warehouse_data_from_api() -> list[dict]:
-    contifico_api_key: str | None = os.getenv("CONTIFICO_API_KEY")
-    url: str = f"https://api.contifico.com/sistema/api/v1/bodega"
-    headers: dict = {
-        "Authorization": contifico_api_key,
-    }
 
-    bodegas_data = []
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            for bodega in response.json():
-                bodega_data = {
-                    "codigo": bodega.get("codigo"),
-                    "nombre": bodega.get("nombre"),
-                    "contifico_id":bodega.get("id")
-                }
-                bodegas_data.append(bodega_data)
-
-        else:
-            print(f"Error:{response.status_code}")
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
-        return []
-
-    return bodegas_data
-
-def populate_warehouse_tables():
-    warehouse_data = gather_warehouse_data_from_api()
-    for warehouse in warehouse_data:
-        db.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
-    db.execute("""
-    UPDATE warehouse
-    SET internal_contifico_id = 64035
-    WHERE name = 'Bodega Village'
-    """)
-    db.execute("""
-            UPDATE warehouse
-            SET internal_contifico_id = 64730
-            WHERE name = 'Bodega Riocentro Ceibos'
-            """)
-    db.execute("""
-        UPDATE warehouse
-        SET internal_contifico_id = 87729
-        WHERE name = 'Bodega Mall del Sol'
-        """)
-    db.close()
-
-def generate_data_set_with_date_range( start_date:datetime, end_date:datetime, bodegas : list):
+def generate_data_set_with_date_range(db, start_date:datetime, end_date:datetime, bodegas : list):
         """
         Fetches reports weekly forom start_date to end_date
         :param start_date: start data collection from this date
@@ -80,9 +28,14 @@ def generate_data_set_with_date_range( start_date:datetime, end_date:datetime, b
             week_end = min(current_date + timedelta(days=7), end_date)
 
             for warehouse in bodegas:
-                warehouse_id = warehouse['internal_contifico_id']
+                warehouse_id = warehouse['id']
+                warehouse_internal_contifico_id = warehouse['internal_contifico_id']
                 warehouse_name = warehouse['name']
-                filepath = scrapper.download_report(bodega_name=warehouse_name, bodega_id=warehouse_id, fecha_inicio=current_date, fecha_corte=week_end)
+                filepath = scrapper.download_report(
+                        bodega_name=warehouse_name, 
+                        bodega_internal_contifico_id=warehouse_internal_contifico_id,
+                        fecha_inicio=current_date,
+                        fecha_corte=week_end)
 
                 if filepath:
                     reports.append({
@@ -99,18 +52,15 @@ def generate_data_set_with_date_range( start_date:datetime, end_date:datetime, b
                 else:
                     print(f'Failed to download report {warehouse_name}: {current_date} - {week_end}')
 
-                current_date = week_end
-                print(current_date)
+            current_date = week_end
+            print(current_date)
 
         return reports
 
-def generate_dataset():
+def generate_dataset(db):
     print('gathering stores')
     stores = db.getStoreWarehouse()
-    print("populating warehouse tables")
-    populate_warehouse_tables()
     print("starting to generate data set....")
-    generate_data_set_with_date_range(start_date=datetime(2022, 1, 1), end_date=datetime(2026, 2, 1), bodegas=stores)
+    generate_data_set_with_date_range(db=db, start_date=datetime(2022, 1, 1), end_date=datetime(2026, 2, 1), bodegas=stores)
     return None
 
-generate_dataset()

@@ -36,10 +36,12 @@ def show_output_from_database():
     return result
 
 def recreate_dataset():
-    db = databaseManager(db_path="historicalInventory.db")
+    db = databaseManager(db_path="historicalInventory.db", build_schema=True)
     load_dotenv()
     generate_dataset(db)
     return None
+
+
 
 def main():
     load_dotenv()

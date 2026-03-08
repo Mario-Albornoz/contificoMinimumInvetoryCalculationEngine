@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from sqlite.queries import get_records_for_data_frame_query
 
 from modules.databaseConnector import databaseManager
@@ -43,7 +44,8 @@ class DataFramePreprocessor:
 
         string_columns = [
                 'product_contifico_id',
-                'warehouse_name'
+                'warehouse_name',
+                'product_category'
                 ]
 
         for col in string_columns:
@@ -56,8 +58,14 @@ class DataFramePreprocessor:
     def prepare_dataframes(self):
         assert self.df is not None
         self.add_types_to_dataframe()
+        #flag outliers/negative values
+        self.df['stock_discrepancy_flag'] = (
+                (self.df['initial_stock'] < 0.0) | (self.df['final_stock'] < 0.0)
+                ).astype(int)
+        self.df['clean_intial_stock'] = self.df['initial_stock'].clip(lower = 0)
+        self.df['clean_final_stock']= self.df['final_stock'].clip(lower = 0)
         #feature engineering
-        self.df['demand'] = self.df['initial_stock'] - self.df['final_stock']
+        self.df['demand'] = (self.df['clean_intial_stock'] - self.df['clean_final_stock']).clip(lower = 0)
         self.df['week'] = pd.to_datetime(self.df['start_date'])
         self.df['week_of_year'] = self.df['week'].dt.isocalendar().week
         self.df['month'] = self.df['week'].dt.month

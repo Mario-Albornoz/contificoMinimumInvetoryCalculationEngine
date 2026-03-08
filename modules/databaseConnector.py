@@ -12,9 +12,9 @@ class databaseManager:
         self.conn: Connection =  sqlite3.connect(self.db_path)        
         self.cursor: Cursor = self.conn.cursor()
         self.build_schema:bool=build_schema
+        self.client = ConfiticoAPIClient()
         if self.build_schema == True:
             self.initialize_schema()
-        self.client = ConfiticoAPIClient()
 
     def connect(self) -> tuple[Cursor | None, Connection]:
         if self.conn is None:
@@ -57,20 +57,18 @@ class databaseManager:
         self.cursor.execute(records_table)
         self.cursor.execute(inventory_records)
 
-
         for idx in index:
             self.cursor.execute(idx)
-
-        self.populate_warehouse_tables()
-
         assert self.conn is not None
         self.conn.commit()
+
+        self.populate_warehouse_tables()
         print("Database Schema intilized")
 
-    def upsert_product(self, product_name:str, product_code:str, unit_type:str, contifico_id=None):
+    def upsert_product(self, product_name:str, product_code:str, product_category:str, unit_type:str, contifico_id=None):
         query = """
-        INSERT INTO product (product_name, product_code, unit_type, contifico_id)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO product (product_name, product_code, product_category, unit_type, contifico_id)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(product_code) DO UPDATE SET
         product_name = excluded.product_name,
         unit_type = excluded.unit_type,
@@ -78,7 +76,7 @@ class databaseManager:
         """
 
         try:
-            self.execute(query, params=(product_name, product_code, unit_type, contifico_id))
+            self.execute(query, params=(product_name, product_code, product_category, unit_type, contifico_id))
         except sqlite3.IntegrityError as e:
             print(f"IntegrityError: {e}")
             print(f"  Incoming -> name: {product_name}, code: {product_code}")
@@ -141,26 +139,11 @@ class databaseManager:
         query = insert_inventory_records_query
         self.execute(query, (product_id, period_id, initial_stock, final_stock))
 
-    def insert_report(self,start_date, end_date, warehouse, products_table):
-        period_id = self.insert_period_record(start_date, end_date, warehouse)
-
-        for product in products_table:
-            product_id = self.upsert_product(
-                product_code=product['product_code'],
-                product_name=product['product_name'],
-                unit_type=product['unit_type']
-            )
-
-            self.insert_inventory_record(
-                product_id=product_id,
-                period_id=period_id,
-                initial_stock=product['initial_stock'],
-                final_stock=product['final_stock']
-            )
     def populate_warehouse_tables(self):
         warehouse_data = self.client.warehouses.gather_warehouse_data_from_api()
         for warehouse in warehouse_data:
             self.upsert_warehouse(warehouse['nombre'],  warehouse['codigo'], warehouse['contifico_id'])
+
         self.execute("""
         UPDATE warehouse
         SET internal_contifico_id = 64035
@@ -180,12 +163,11 @@ class databaseManager:
 
     def enrich_products_with_contifico_id(self):
         product_response = self.client.products.get_all_products()
-        product_data = product_response.get('results', [])
-        for product in product_data:
+        for product in product_response:
             self.execute("""
                     UPDATE product
                     SET contifico_id = ?
-                    WHERE codigo = ?
+                    WHERE product_code = ?
                          """, (product.get('id'),product.get('codigo'))
                          )
         return None

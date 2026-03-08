@@ -4,9 +4,10 @@ class ProductData:
     temporarly for the data gathering script in the insert bulk report function. It does not contain information about
     which warehouse the data refers to.
     """
-    def __init__(self, product_name, product_code, unit_type, initial_stock, final_stock, contifico_id = None):
+    def __init__(self, product_name, product_code, product_category, unit_type, initial_stock, final_stock, contifico_id = None):
         self.product_name = product_name
         self.product_code = product_code
+        self.product_category = product_category
         self.unit_type = unit_type
         self.contifico_id = contifico_id
         self.initial_stock = initial_stock

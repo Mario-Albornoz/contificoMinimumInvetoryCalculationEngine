@@ -4,10 +4,11 @@ import os
 
 from modules.data.webScrapper import  WebScrapper
 from modules.data.reportUtils import  gather_data_from_report
+from modules.databaseConnector import databaseManager
 
 
 
-def generate_data_set_with_date_range(db, start_date:datetime, end_date:datetime, bodegas : list):
+def generate_data_set_with_date_range(db:databaseManager, start_date:datetime, end_date:datetime, bodegas : list):
         """
         Fetches reports weekly forom start_date to end_date
         :param start_date: start data collection from this date
@@ -54,6 +55,8 @@ def generate_data_set_with_date_range(db, start_date:datetime, end_date:datetime
 
             current_date = week_end
             print(current_date)
+
+        db.enrich_products_with_contifico_id()
 
         return reports
 

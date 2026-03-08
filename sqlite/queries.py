@@ -1,5 +1,8 @@
 get_records_for_data_frame_query = """SELECT
                                     p.contifico_id as product_contifico_id,
+                                    p.unit_type as product_unit_type,
+                                    p.product_name as product_name,
+                                    p.product_category as product_category,
                                     w.name as warehouse_name,
                                     w.contifico_id as warehouse_contifico_id,
                                     ir.initial_stock as initial_stock,
@@ -33,6 +36,7 @@ product_table_schema_query = """
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             product_name TEXT NOT NULL,
             product_code TEXT UNIQUE NOT NULL,
+            product_category TEXT,
             contifico_id TEXT UNIQUE,
             unit_type TEXT NOT NULL
         )

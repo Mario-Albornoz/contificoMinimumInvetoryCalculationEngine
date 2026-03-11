@@ -1,32 +1,40 @@
 import os
-
-import requests
 from datetime import datetime, timedelta
 from pathlib import Path
+
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class WebScrapper:
-    def __init__(self, username=os.getenv("CONTIFICO_USERNAME"), password = os.getenv("CONTIFICO_PASSWORD"),  debug = False):
-        self.username:str = username
-        self.password:str = password
-        self.company_id:str = os.getenv("COMPANY_ID")
-        self.base_url:str = os.getenv("CONTIFICO_BASE_ENDPOINT")
+    def __init__(
+        self,
+        username=os.getenv("CONTIFICO_USERNAME"),
+        password=os.getenv("CONTIFICO_PASSWORD"),
+        debug=False,
+    ):
+        self.username: str = username
+        self.password: str = password
+        self.company_id: str = os.getenv("COMPANY_ID")
+        self.base_url: str = os.getenv("CONTIFICO_BASE_ENDPOINT")
         self.session = requests.session()
         self.logged_in: bool = False
         self.debug: bool = debug
 
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+            }
+        )
         self.login()
 
-    def _print_debug(self, message:str):
+    def _print_debug(self, message: str):
         if self.debug:
             print(f" DEBUG: {message}")
 
@@ -46,28 +54,30 @@ class WebScrapper:
             return None, None
 
         csrf_token = None
-        for cookie_name in ['csrftoken', 'csrf', 'CSRF-TOKEN']:
+        for cookie_name in ["csrftoken", "csrf", "CSRF-TOKEN"]:
             if cookie_name in self.session.cookies:
                 csrf_token = self.session.cookies[cookie_name]
-                self._print_debug(f'Found CSRF token in cookie: {csrf_token}')
+                self._print_debug(f"Found CSRF token in cookie: {csrf_token}")
                 break
 
         login_data = {
-            'username': self.username,
-            'password': self.password,
+            "username": self.username,
+            "password": self.password,
         }
 
         if csrf_token:
-            login_data['csrfmiddlewaretoken'] = csrf_token
-            self.session.headers.update({'X-CSRFToken': csrf_token})
+            login_data["csrfmiddlewaretoken"] = csrf_token
+            self.session.headers.update({"X-CSRFToken": csrf_token})
 
-        self.session.headers.update({
-            'Referer': login_url,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Origin': 'https://0993361712001.contifico.com',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json, text/javascript, */*; q=0.01'
-        })
+        self.session.headers.update(
+            {
+                "Referer": login_url,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": "https://0993361712001.contifico.com",
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+            }
+        )
 
         return login_url, login_data
 
@@ -80,88 +90,110 @@ class WebScrapper:
         try:
             self._print_debug(f"Attempting login with username: {self.username}")
 
-            response = self.session.post(login_url, data=login_data, allow_redirects=True)
+            response = self.session.post(
+                login_url, data=login_data, allow_redirects=True
+            )
             self._print_debug(f"Login response status: {response.status_code}")
 
             try:
                 login_json = response.json()
                 self._print_debug(f"Login JSON response: {login_json}")
 
-                if login_json.get('auth') == True:
+                if login_json.get("auth") == True:
                     print("✓ First Step Authentication successful")
 
-                    empresas = login_json.get('empresas', [])
+                    empresas = login_json.get("empresas", [])
                     if empresas:
                         self._print_debug(f"Companies available: {empresas}")
 
                         base_url = os.getenv("CONTIFICO_BASE_ENDPOINT")
 
-                        company_data = {'empresa': self.company_id,
-                                        'username': self.username,
-                                        'password': self.password,}
+                        company_data = {
+                            "empresa": self.company_id,
+                            "username": self.username,
+                            "password": self.password,
+                        }
 
                         self._print_debug(f"Selecting company at: {login_url}")
 
                         company_response = self.session.post(
-                            login_url,
-                            data=company_data,
-                            allow_redirects=True
+                            login_url, data=company_data, allow_redirects=True
                         )
 
-                        self._print_debug(f"Company selection status: {company_response.status_code}")
-                        self._print_debug(f"Company selection URL: {company_response.url}")
-                        self._print_debug(f"Cookies after company selection: {self.session.cookies.get_dict()}")
+                        self._print_debug(
+                            f"Company selection status: {company_response.status_code}"
+                        )
+                        self._print_debug(
+                            f"Company selection URL: {company_response.url}"
+                        )
+                        self._print_debug(
+                            f"Cookies after company selection: {self.session.cookies.get_dict()}"
+                        )
 
                         try:
                             company_json = company_response.json()
-                            self._print_debug(f"Company selection response: {company_json}")
+                            self._print_debug(
+                                f"Company selection response: {company_json}"
+                            )
 
-                            if company_json.get('auth') == True or company_json.get('url_redirect'):
-                                redirect_url = company_json.get('url_redirect')
+                            if company_json.get("auth") == True or company_json.get(
+                                "url_redirect"
+                            ):
+                                redirect_url = company_json.get("url_redirect")
 
                                 if redirect_url:
-                                    if redirect_url.startswith('/'):
+                                    if redirect_url.startswith("/"):
                                         redirect_url = f"{base_url}{redirect_url}"
 
-                                    self._print_debug(f"Following redirect to: {redirect_url}")
+                                    self._print_debug(
+                                        f"Following redirect to: {redirect_url}"
+                                    )
                                     final_response = self.session.get(redirect_url)
-                                    self._print_debug(f"Final URL: {final_response.url}")
+                                    self._print_debug(
+                                        f"Final URL: {final_response.url}"
+                                    )
 
                                 print("✓ Login and company selection successful")
                                 self.logged_in = True
                                 return True
                             else:
-                                errors = company_json.get('errors', 'Unknown error')
+                                errors = company_json.get("errors", "Unknown error")
                                 print(f"✗ Company selection failed: {errors}")
                                 return False
 
                         except ValueError:
-                            self._print_debug(f"Company response is HTML, checking URL: {company_response.url}")
+                            self._print_debug(
+                                f"Company response is HTML, checking URL: {company_response.url}"
+                            )
 
-                            if 'login' not in company_response.url.lower():
+                            if "login" not in company_response.url.lower():
                                 print("✓ Login and company selection successful")
                                 self.logged_in = True
                                 return True
                             else:
-                                with open('company_response.html', 'w', encoding='utf-8') as f:
+                                with open(
+                                    "company_response.html", "w", encoding="utf-8"
+                                ) as f:
                                     f.write(company_response.text)
-                                print("✗ Company selection failed - saved response to company_response.html")
+                                print(
+                                    "✗ Company selection failed - saved response to company_response.html"
+                                )
                                 return False
                     else:
                         print("✓ Login successful (no company selection needed)")
                         self.logged_in = True
                         return True
                 else:
-                    errors = login_json.get('errors', 'Unknown error')
+                    errors = login_json.get("errors", "Unknown error")
                     print(f"✗ Login failed: {errors}")
                     return False
 
             except ValueError as e:
                 self._print_debug(f"JSON parse error: {e}")
-                with open('login_response.html', 'w', encoding='utf-8') as f:
+                with open("login_response.html", "w", encoding="utf-8") as f:
                     f.write(response.text)
 
-                if 'login' not in response.url.lower():
+                if "login" not in response.url.lower():
                     print("✓ Login successful (HTML response)")
                     self.logged_in = True
                     return True
@@ -173,7 +205,13 @@ class WebScrapper:
             print(f"Login failed: {e}")
             return False
 
-    def download_report(self, bodega_internal_contifico_id: int, bodega_name: str, fecha_inicio:datetime, fecha_corte:datetime) -> str | None:
+    def download_report(
+        self,
+        bodega_internal_contifico_id: int,
+        bodega_name: str,
+        fecha_inicio: datetime,
+        fecha_corte: datetime,
+    ) -> str | None:
         if not self.logged_in:
             print("Not logged in. Please login first.")
             return None
@@ -198,9 +236,10 @@ class WebScrapper:
                 print(f"Downloaded {len(response.content)} bytes")
 
                 filename = "report.xlsx"
-                if 'Content-Disposition' in response.headers:
+                if "Content-Disposition" in response.headers:
                     import re
-                    cd = response.headers['Content-Disposition']
+
+                    cd = response.headers["Content-Disposition"]
                     filename_match = re.findall('filename="?([^"]+)"?', cd)
                     if filename_match:
                         filename = filename_match[0]
@@ -218,6 +257,7 @@ class WebScrapper:
     def parse_date(self, date: datetime) -> str:
         return date.strftime("%d%%2F%m%%2F%Y")
 
-#ws =  WebScrapper(debug=False)
-#ws.login()
-#ws.download_report(bodega_id="BOD001", bodega_name="Bodega Village", fecha_inicio=datetime(2026, 1, 1), fecha_corte=datetime(2026, 1, 7))
+
+# ws =  WebScrapper(debug=False)
+# ws.login()
+# ws.download_report(bodega_id="BOD001", bodega_name="Bodega Village", fecha_inicio=datetime(2026, 1, 1), fecha_corte=datetime(2026, 1, 7))

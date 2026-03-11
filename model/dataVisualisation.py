@@ -1,21 +1,22 @@
-import pandas as pd
 import matplotlib.pyplot as plt
-from model.DataPreprocessing import DataFramePreprocessor
+import pandas as pd
 from pandas import DataFrame
+
+from model.DataPreprocessing import DataFramePreprocessor
 
 
 class DataFrameVisualizer:
 
     def __init__(self, df: DataFrame):
-        self.df:DataFrame = df.copy()
-        self.df['week'] = pd.to_datetime(self.df['week'])
+        self.df: DataFrame = df.copy()
+        self.df["week"] = pd.to_datetime(self.df["week"])
 
     def plot_total_demand_over_time(self):
         """
         Shows total weekly demand across all products and warehouses
         """
 
-        grouped = self.df.groupby('week')['demand'].sum()
+        grouped = self.df.groupby("week")["demand"].sum()
 
         plt.figure()
         grouped.plot()
@@ -31,7 +32,7 @@ class DataFrameVisualizer:
         shows demand trends per warehouse
         """
 
-        grouped = self.df.groupby(['week', 'warehouse_name'])['demand'].sum()
+        grouped = self.df.groupby(["week", "warehouse_name"])["demand"].sum()
         pivoted = grouped.unstack()
 
         plt.figure()
@@ -48,9 +49,9 @@ class DataFrameVisualizer:
         shows weekly demand for a specific product
         """
 
-        product_df = self.df[self.df['product_id'] == product_id]
+        product_df = self.df[self.df["product_id"] == product_id]
 
-        grouped = product_df.groupby('week')['demand'].sum()
+        grouped = product_df.groupby("week")["demand"].sum()
 
         plt.figure()
         grouped.plot()
@@ -67,11 +68,11 @@ class DataFrameVisualizer:
         """
 
         subset = self.df[
-            (self.df['product_id'] == product_id) &
-            (self.df['warehouse_contifico_id'] == warehouse_id)
+            (self.df["product_id"] == product_id)
+            & (self.df["warehouse_contifico_id"] == warehouse_id)
         ]
 
-        grouped = subset.groupby('week')['demand'].sum()
+        grouped = subset.groupby("week")["demand"].sum()
 
         plt.figure()
         grouped.plot()
@@ -82,7 +83,6 @@ class DataFrameVisualizer:
 
         plt.show()
 
-    
     def plot_demand_distribution(self):
         """
         shows histogram of weekly demand
@@ -90,7 +90,7 @@ class DataFrameVisualizer:
         """
 
         plt.figure()
-        self.df['demand'].hist()
+        self.df["demand"].hist()
 
         plt.xlabel("demand")
         plt.ylabel("frequency")
@@ -104,17 +104,17 @@ class DataFrameVisualizer:
         """
 
         grouped = (
-            self.df.groupby('product_confico_id')['demand'].sum().sort_values(ascending=False).head(n)
+            self.df.groupby("product_confico_id")["demand"]
+            .sum()
+            .sort_values(ascending=False)
+            .head(n)
         )
 
         plt.figure()
-        grouped.plot(kind='bar')
+        grouped.plot(kind="bar")
 
         plt.xlabel("product")
         plt.ylabel("total demand")
         plt.title(f"top {n} products by demand")
 
         plt.show()
-
-
-

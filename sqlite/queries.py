@@ -13,7 +13,7 @@ get_records_for_data_frame_query = """SELECT
                                 LEFT JOIN period_record pr ON ir.period_record_id = pr.id 
                                 LEFT JOIN warehouse w ON pr.warehouse_id = w.id"""
 
-insert_inventory_records_query  = """
+insert_inventory_records_query = """
                                     INSERT INTO inventory_records 
                                     (product_id, period_record_id, initial_stock,  final_stock)
                                     VALUES (?, ?, ?, ?)
@@ -21,8 +21,8 @@ insert_inventory_records_query  = """
                                         initial_stock = excluded.initial_stock,
                                         final_stock = excluded.final_stock
                                     """
- 
-upsert_warehouse_query =  """
+
+upsert_warehouse_query = """
         INSERT INTO warehouse (name, contifico_id, code)
         VALUES(?,?,?)
         ON CONFLICT(code) DO UPDATE SET
@@ -80,4 +80,3 @@ inventory_records_table_schema_query = """
         UNIQUE (product_id, period_record_id)
         )
         """
-

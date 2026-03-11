@@ -1,10 +1,9 @@
 import pandas as pd
 from dotenv import load_dotenv
 
-from modules import *
 from model.DataPreprocessing import DataFramePreprocessor
-from model.dataVisualisation import DataFrameVisualizer
-from modules.databaseConnector import databaseManager 
+from modules import *
+from modules.databaseConnector import databaseManager
 from modules.scripts.dataGathering import generate_dataset
 
 
@@ -12,9 +11,10 @@ def get_data_specs(df):
     print("Shape:", df.shape)
     print("\nData types:\n", df.dtypes)
     print("\nHead of DataFrame:\n", df.head())
-    print("\nSummary statistics:\n", df.describe(include='all'))
+    print("\nSummary statistics:\n", df.describe(include="all"))
     print("\nMissing values per column:\n", df.isna().sum())
     print("\nUnique values per column:\n", df.nunique())
+
 
 def show_output_from_database():
     db = databaseManager(build_schema=False)
@@ -29,18 +29,18 @@ def show_output_from_database():
                                 LEFT JOIN period_record pr ON ir.period_record_id = pr.id 
     """
     result = db.execute(query=query)
-    
+
     df = pd.DataFrame(result, columns=[d[0] for d in db.cursor.description])
     get_data_specs(df)
-    
+
     return result
+
 
 def recreate_dataset():
     db = databaseManager(db_path="historicalInventory.db", build_schema=True)
     load_dotenv()
     generate_dataset(db)
     return None
-
 
 
 def main():
@@ -51,6 +51,6 @@ def main():
     train_df = preprocessor.train_df
     get_data_specs(train_df)
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()

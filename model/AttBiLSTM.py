@@ -29,3 +29,6 @@ class Attention(nn.Module):
         weights = self.softmax(scores)
         context = (weights * x).sum(dim=0)
         return context
+
+
+

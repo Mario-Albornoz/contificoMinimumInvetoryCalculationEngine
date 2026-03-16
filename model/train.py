@@ -1,46 +1,68 @@
-import pandas as pd
+import numpy as np
+import torch
+from torch.nn import Module
 
-from sklearn.model_selection import train_test_split
-from pandas import DataFrame
-from modules.databaseConnector import databaseManager
-from sqlite.queries import get_records_for_data_frame_query  
+from model.DataPreprocessing import DataFramePreprocessor
+from model.InventoryForcaster import InventoryForcaster
 
 
+def train(
+    model: InventoryForcaster,
+    data_frame_preproccesor: DataFramePreprocessor,
+    optimizer: torch.optim.Optimizer,
+    criterion: Module,
+    epochs: int,
+    device: torch.device,
+) -> dict[str, list]:
 
-def fetch_dataframe() -> DataFrame: #returns test_df, train_df
-    """
-    get 
-        "product_confico_id":"BQ9pdBB26H52dasdI"
-        "bodega_nombre": "Bodega Principal",
-        "bodega_id": "BQ9pdBB26H52d8KE",
-        "cantidad": 5
-        "date":"2026-02-23"
-    from database for every inventory_record and place the result in a pandas dataframe and splits it into train and test dataframes
-    """
-    query = get_records_for_data_frame_query
-    db = databaseManager(build_schema=False)
-    df = pd.read_sql_query(query, db.conn)
+    dataloader = data_frame_preproccesor.fetch_dataframe().prepare_dataframes().pandas_df_to_tensor()
+    model.lstm.to(device)
+    history = {"lstm_loss": [], "residual_loss": []}
 
-    return df 
+    for epoch in range(epochs):
+        model.lstm.train()
+        epoch_lstm_loss = 0
+        epoch_residual_loss = 0
+        hidden = None
 
-def prepare_dataframes(df) -> tuple:
-    df['demand'] = df['initial_stock'] - df['final_stock']
-    df['week'] = pd.to_datetime(df['start_date'])
-    df['week_of_year'] = df['week'].dt.isocalendar().week
-    df['month'] = df['week'].dt.month
-    df = df.drop(columns=['start_date'])
-    train_df = df[df['week'] < df['week'].max() - pd.Timedelta(weeks=12)]
-    test_df = df[df['week'] >= df['week'].max() - pd.Timedelta(weeks=12)]
+        for batch_idx, (x, targets) in enumerate(dataloader.train_tensor):
+            x, targets = x.to(device), targets.to(device)
 
-    return train_df, test_df
+            # --- Phase 1: Train LSTM ---
+            optimizer.zero_grad()
+            lstm_out, hidden = model.lstm(x, hidden)
 
-#TODO: set up data visualization
-#TODO: Implement current non ai solutions
+            # detach hidden to prevent backprop through entire history
+            hidden = (hidden[0].detach(), hidden[1].detach())
 
-#TODO: set up model logic
-#TODO: Set up main training function
-#TODO: SET up metrics
-#TODO: Create classes for model and loss function
-def train():
-    return None
+            lstm_loss = criterion(lstm_out, targets)
+            lstm_loss.backward()
+            optimizer.step()
+            epoch_lstm_loss += lstm_loss.item()
 
+            # --- Phase 2: Fit XGBoost on residuals ---
+            model.lstm.eval()
+            with torch.no_grad():
+                lstm_out, _ = model.lstm(x, hidden)
+                residuals = (targets - lstm_out).cpu().numpy()
+                lstm_out_np = lstm_out.cpu().numpy()
+
+            model.xgboost.fit(lstm_out_np, residuals)
+
+            # track residual loss
+            residual_correction = model.xgboost.predict(lstm_out_np)
+            residual_loss = np.mean(residuals**2)  # MSE of residuals
+            epoch_residual_loss += residual_loss
+
+        avg_lstm_loss = epoch_lstm_loss / len(dataloader)
+        avg_residual_loss = epoch_residual_loss / len(dataloader)
+        history["lstm_loss"].append(avg_lstm_loss)
+        history["residual_loss"].append(avg_residual_loss)
+
+        print(
+            f"Epoch {epoch+1}/{epochs} | "
+            f"LSTM Loss: {avg_lstm_loss:.4f} | "
+            f"Residual Loss: {avg_residual_loss:.4f}"
+        )
+
+    return history

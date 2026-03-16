@@ -1,11 +1,8 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class WebScrapper:
@@ -256,8 +253,3 @@ class WebScrapper:
 
     def parse_date(self, date: datetime) -> str:
         return date.strftime("%d%%2F%m%%2F%Y")
-
-
-# ws =  WebScrapper(debug=False)
-# ws.login()
-# ws.download_report(bodega_id="BOD001", bodega_name="Bodega Village", fecha_inicio=datetime(2026, 1, 1), fecha_corte=datetime(2026, 1, 7))

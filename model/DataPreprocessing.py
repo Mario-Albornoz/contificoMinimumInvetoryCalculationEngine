@@ -1,4 +1,8 @@
 import pandas as pd
+import torch
+import torch.nn as nn
+from sklearn.preprocessing import LabelEncoder
+from xgboost import sklearn
 
 from modules.databaseConnector import databaseManager
 from sqlite.queries import get_records_for_data_frame_query
@@ -8,7 +12,24 @@ class DataFramePreprocessor:
     def __init__(self):
         self.df = None
         self.train_df = None
+        self.train_tensor = None
         self.test_df = None
+        self.test_tensor = None
+        self.le: LabelEncoder | None = None
+        self.string_columns = [
+            "product_contifico_id",
+            "warehouse_name",
+            "product_category",
+        ]
+        self.numeric_colums = [
+            "demand_lag_1",
+            "demand_lag_4",
+            "demand_lag_3",
+            "demand_lag_2",
+            "initial_stock",
+            "final_stock",
+            "demand",
+        ]
 
     def fetch_dataframe(self):
         """
@@ -28,23 +49,12 @@ class DataFramePreprocessor:
         return self
 
     def add_types_to_dataframe(self):
-        numeric_colums = [
-            "demand_lag_1",
-            "demand_lag_4",
-            "demand_lag_3",
-            "demand_lag_2",
-            "initial_stock",
-            "final_stock",
-            "demand",
-        ]
 
-        for col in numeric_colums:
+        for col in self.numeric_colums:
             if col in self.df.columns:  # type: ignore
                 self.df[col] = pd.to_numeric(self.df[col], errors="coerce")  # type: ignore
 
-        string_columns = ["product_contifico_id", "warehouse_name", "product_category"]
-
-        for col in string_columns:
+        for col in self.string_columns:
             if col in self.df.columns:  # type: ignore
                 self.df[col] = self.df[col].astype(str)  # type: ignore
 
@@ -53,26 +63,7 @@ class DataFramePreprocessor:
     def prepare_dataframes(self):
         assert self.df is not None
         self.add_types_to_dataframe()
-        # flag outliers/negative values
-        self.df["stock_discrepancy_flag"] = (
-            (self.df["initial_stock"] < 0.0) | (self.df["final_stock"] < 0.0)
-        ).astype(int)
-        self.df["clean_intial_stock"] = self.df["initial_stock"].clip(lower=0)
-        self.df["clean_final_stock"] = self.df["final_stock"].clip(lower=0)
-        # feature engineering
-        self.df["demand"] = (
-            self.df["clean_intial_stock"] - self.df["clean_final_stock"]
-        ).clip(lower=0)
-        self.df["week"] = pd.to_datetime(self.df["start_date"])
-        self.df["week_of_year"] = self.df["week"].dt.isocalendar().week
-        self.df["month"] = self.df["week"].dt.month
-        self.df = self.df.drop(columns=["start_date"])
-        for time_lag in range(1, 5):
-            self.df[f"demand_lag_{time_lag}"] = self.df.groupby(
-                ["product_contifico_id", "warehouse_contifico_id"]
-            )["demand"].shift(time_lag)
-
-        # Split dataframe
+        self.preprocess_data()
         self.train_df = self.df[
             self.df["week"] < self.df["week"].max() - pd.Timedelta(weeks=12)
         ]
@@ -80,4 +71,54 @@ class DataFramePreprocessor:
             self.df["week"] >= self.df["week"].max() - pd.Timedelta(weeks=12)
         ]
 
+        return self
+
+    def pandas_df_to_tensor(self):
+        if self.train_df is None or self.test_df is None:
+            raise ValueError("train or test dataframe == None")
+        self.train_tensor = torch.from_numpy(self.train_df.to_numpy()).float()
+        self.test_tensor = torch.from_numpy(self.test_df.to_numpy()).float()
+        return self
+    
+    def encode_text_columns(self):
+        self.le = LabelEncoder()
+        for column in self.string_columns:
+            self.df[column] = self.le.fit_transform(self.df[column])
+        return self
+    
+    def preprocess_data(self):
+        self.df["stock_discrepancy_flag"] = (
+            (self.df["initial_stock"] < 0.0) | (self.df["final_stock"] < 0.0)
+        ).astype(int)
+        self.df["clean_initial_stock"] = self.df["initial_stock"].clip(lower=0)
+        self.df["clean_final_stock"] = self.df["final_stock"].clip(lower=0)
+    
+        # feature engineering
+        self.df["demand"] = (
+            self.df["clean_initial_stock"] - self.df["clean_final_stock"]
+        ).clip(lower=0)
+        self.df["week"] = pd.to_datetime(self.df["start_date"])
+        self.df["week_of_year"] = self.df["week"].dt.isocalendar().week
+        self.df["month"] = self.df["week"].dt.month
+        self.df = self.df.drop(columns=["start_date", "week"])
+        
+        for time_lag in range(1, 5):
+            self.df[f"demand_lag_{time_lag}"] = self.df.groupby(
+                ["product_contifico_id", "warehouse_contifico_id"]
+            )["demand"].shift(time_lag)
+    
+        self.df = self.df.dropna()
+    
+        self.encode_text_columns()
+    
+        self.embedding_dims = {
+            column: (self.df[column].nunique(), min(50, (self.df[column].nunique() + 1) // 2))
+            for column in self.string_columns
+        }
+    
+        self.embeddings = nn.ModuleDict({
+            column: nn.Embedding(num_embeddings, embedding_dim)
+            for column, (num_embeddings, embedding_dim) in self.embedding_dims.items()
+        })
+    
         return self

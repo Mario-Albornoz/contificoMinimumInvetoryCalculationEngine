@@ -42,13 +42,37 @@ def recreate_dataset():
     return None
 
 
+def test_dataset_pipeline():
+    print("fetching dataframe and tensors..")
+    preprocessor = (
+        DataFramePreprocessor(debug=True)
+        .fetch_dataframe()
+        .add_features()
+        .encode_text_columns()
+        .create_embedding()
+        .split_dataset()
+        .pandas_df_to_tensor()
+    )
+
+    print(preprocessor.train_tensor)
+
+    return None
+
+
 def main():
     load_dotenv()
-    preprocessor = DataFramePreprocessor().fetch_dataframe().prepare_dataframes()
+    print("fetching dataframe and tensors..")
+    preprocessor = (
+        DataFramePreprocessor(debug=True)
+        .fetch_dataframe()
+        .add_features()
+        .encode_text_columns()
+        .create_embedding()
+        .split_dataset()
+        .pandas_df_to_tensor()
+    )
 
-    assert preprocessor.train_df is not None
-    train_df = preprocessor.train_df
-    get_data_specs(train_df)
+    print(preprocessor.train_tensor)
 
 
 if __name__ == "__main__":

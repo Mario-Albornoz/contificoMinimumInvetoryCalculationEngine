@@ -1,7 +1,12 @@
 import pandas as pd
+import torch
 from dotenv import load_dotenv
+from torch.nn.modules import L1Loss
+from torch.optim import Optimizer
 
 from model.DataPreprocessing import DataFramePreprocessor
+from model.InventoryForcaster import AttBiLSTMParams, InventoryForcaster, XGBoostParams
+from model.train import train
 from modules import *
 from modules.databaseConnector import databaseManager
 from modules.scripts.dataGathering import generate_dataset
@@ -14,6 +19,8 @@ def get_data_specs(df):
     print("\nSummary statistics:\n", df.describe(include="all"))
     print("\nMissing values per column:\n", df.isna().sum())
     print("\nUnique values per column:\n", df.nunique())
+    print(df["demand"].describe())
+    print(df["demand"].quantile([0.5, 0.75, 0.90, 0.95, 0.99]))
 
 
 def show_output_from_database():
@@ -63,7 +70,7 @@ def main():
     load_dotenv()
     print("fetching dataframe and tensors..")
     preprocessor = (
-        DataFramePreprocessor(debug=True)
+        DataFramePreprocessor(debug=False)
         .fetch_dataframe()
         .add_features()
         .encode_text_columns()
@@ -72,7 +79,36 @@ def main():
         .pandas_df_to_tensor()
     )
 
-    print(preprocessor.train_tensor)
+    get_data_specs(preprocessor.df)
+    get_data_specs(preprocessor.train_df)
+
+    train_loader, test_loader = preprocessor.get_dataloaders()
+    lstm_params = AttBiLSTMParams(
+        input_size=17,  # number of feature columns (all cols except demand)
+        hidden_size=128,  # standard starting point for this data size
+        num_layer=2,  # 2 stacked BiLSTM layers
+        output_layer=1,  # predicting a single value: demand
+    )
+
+    xgboost_params = XGBoostParams(
+        n_estimator=100,
+        max_depth=6,
+        learning_rate=0.1,
+    )
+    model = InventoryForcaster(lstm_params=lstm_params, xGradient_params=xgboost_params)
+    optimizer = torch.optim.Adam(model.lstm.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer=optimizer, mode="min", factor=0.5, patience=5
+    )
+    criteron = L1Loss()
+    history = train(
+        model,
+        dataloader=train_loader,
+        optimizer=optimizer,
+        criterion=criteron,
+        epochs=100,
+        device=torch.device("cpu"),
+    )
 
 
 if __name__ == "__main__":

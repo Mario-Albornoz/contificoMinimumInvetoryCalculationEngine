@@ -24,6 +24,7 @@ class XGBoostParams:
 
 class InventoryForcaster(Module):
     def __init__(self, lstm_params: AttBiLSTMParams, xGradient_params: XGBoostParams):
+        super().__init__()
         self.lstm = AttBiLSTM(
             lstm_params.input_size,
             lstm_params.hidden_size,

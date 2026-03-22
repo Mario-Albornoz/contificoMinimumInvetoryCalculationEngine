@@ -9,12 +9,14 @@ class AttBiLSTM(nn.Module):
             input_size, hidden_size, num_layer, batch_first=False, bidirectional=True
         )
         self.dense_layer = nn.Linear(hidden_size * 2, output_size)
-        self.attention = Attention(hidden_size=hidden_size)
+        self.attention = Attention(hidden_size=hidden_size * 2)
 
     def forward(self, x, hidden=None):
+        x = x.unsqueeze(0)
         x, hidden = self.lstm(x, hidden)
         context = self.attention.compute_score(x)
         out = self.dense_layer(context)
+
         return out, hidden
 
 
@@ -29,6 +31,3 @@ class Attention(nn.Module):
         weights = self.softmax(scores)
         context = (weights * x).sum(dim=0)
         return context
-
-
-

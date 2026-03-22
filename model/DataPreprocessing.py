@@ -1,8 +1,9 @@
-# type: ignore[reportOptionalSubscript, reportOptionalMemberAccess, reportArgumentType, reportAssignmentType, reportOptionalCall, reportOptionalIterable]
+# type: ignore[reportOptionalSubscript, reportOptionalMemberAccess, reportArgumentType, reportAssignmentType, reportOptionalCall, reportOptionalIterable] import pandas as pd
 import pandas as pd
 import torch
 import torch.nn as nn
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from torch.utils.data import DataLoader, TensorDataset
 
 from modules.databaseConnector import databaseManager
 from sqlite.queries import get_records_for_data_frame_query
@@ -16,6 +17,7 @@ class DataFramePreprocessor:
         self.test_df = None
         self.test_tensor = None
         self.le: LabelEncoder | None = None
+        self.standar_scaler = StandardScaler()
         self.string_columns = [
             "product_contifico_id",
             "warehouse_name",
@@ -173,6 +175,35 @@ class DataFramePreprocessor:
             if object_cols:
                 print(f"WARNING object type still remaining: {object_cols}")
 
-        self.train_tensor = torch.from_numpy(self.train_df.to_numpy()).float()
-        self.test_tensor = torch.from_numpy(self.test_df.to_numpy()).float()
+        train_y, train_x, test_x, test_y = self.separte_target_feature("demand")
+
+        self.train_tensor = (
+            torch.from_numpy(train_x).float(),
+            torch.from_numpy(train_y).float(),
+        )
+        self.test_tensor = (
+            torch.from_numpy(test_x).float(),
+            torch.from_numpy(test_y).float(),
+        )
+
         return self
+
+    def separte_target_feature(self, target: str):
+        train_y = self.train_df[[target]].to_numpy().copy()
+        train_x = self.train_df.drop(columns=[target]).to_numpy().copy()
+        test_y = self.test_df[[target]].to_numpy().copy()
+        test_x = self.test_df.drop(columns=[target]).to_numpy().copy()
+
+        # Normalize values due to high variance
+        train_y = self.standar_scaler.fit_transform(train_y)
+        test_y = self.standar_scaler.transform(test_y)
+
+        return train_y, train_x, test_x, test_y
+
+    def get_dataloaders(self, batch_size: int = 32) -> tuple[DataLoader, DataLoader]:
+        train_dataset = TensorDataset(self.train_tensor[0], self.train_tensor[1])
+        test_dataset = TensorDataset(self.test_tensor[0], self.test_tensor[1])
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+        return train_loader, test_loader

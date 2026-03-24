@@ -78,9 +78,9 @@ def train(
 
         print(
             f"Epoch {epoch+1}/{epochs} | "
-            f"LSTM Loss: {avg_lstm_loss:.4f} | "
-            f"Residual Loss: {avg_residual_loss:.4f} |"
-            f"Combined Loss: {avg_combined_loss:.4f} "
+            f"LSTM Loss: {avg_lstm_loss:.10f} | "
+            f"Residual Loss: {avg_residual_loss:.10f} |"
+            f"Combined Loss: {avg_combined_loss:.10f} "
         )
 
     return history

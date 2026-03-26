@@ -9,19 +9,18 @@ class DataFrameVisualizer:
 
     def __init__(self, df: DataFrame):
         self.df: DataFrame = df.copy()
-        self.df["week"] = pd.to_datetime(self.df["week"])
 
     def plot_total_demand_over_time(self):
         """
         Shows total weekly demand across all products and warehouses
         """
 
-        grouped = self.df.groupby("week")["demand"].sum()
+        grouped = self.df.groupby("week_of_year")["demand"].sum()
 
         plt.figure()
         grouped.plot()
 
-        plt.xlabel("Week")
+        plt.xlabel("week_of_year")
         plt.ylabel("Total Demand")
         plt.title("Total Weekly Demand")
 
@@ -32,13 +31,13 @@ class DataFrameVisualizer:
         shows demand trends per warehouse
         """
 
-        grouped = self.df.groupby(["week", "warehouse_name"])["demand"].sum()
+        grouped = self.df.groupby(["week_of_year", "warehouse_name"])["demand"].sum()
         pivoted = grouped.unstack()
 
         plt.figure()
         pivoted.plot()
 
-        plt.xlabel("week")
+        plt.xlabel("week_of_year")
         plt.ylabel("demand")
         plt.title("weekly demand per warehouse")
 
@@ -51,12 +50,12 @@ class DataFrameVisualizer:
 
         product_df = self.df[self.df["product_id"] == product_id]
 
-        grouped = product_df.groupby("week")["demand"].sum()
+        grouped = product_df.groupby("week_of_year")["demand"].sum()
 
         plt.figure()
         grouped.plot()
 
-        plt.xlabel("week")
+        plt.xlabel("week_of_year")
         plt.ylabel("demand")
         plt.title(f"demand for product {product_id}")
 
@@ -72,12 +71,12 @@ class DataFrameVisualizer:
             & (self.df["warehouse_contifico_id"] == warehouse_id)
         ]
 
-        grouped = subset.groupby("week")["demand"].sum()
+        grouped = subset.groupby("week_of_year")["demand"].sum()
 
         plt.figure()
         grouped.plot()
 
-        plt.xlabel("week")
+        plt.xlabel("week_of_year")
         plt.ylabel("demand")
         plt.title(f"product {product_id} in warehouse {warehouse_id}")
 

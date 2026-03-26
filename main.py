@@ -3,7 +3,9 @@ import torch
 from dotenv import load_dotenv
 from torch.nn.modules import L1Loss
 
+from evaluation.SARIMAbenchmark import SARIMABenchmark
 from model.DataPreprocessing import DataFramePreprocessor
+from model.dataVisualisation import DataFrameVisualizer
 from model.evaluation import evaluate
 from model.InventoryForcaster import AttBiLSTMParams, InventoryForcaster, XGBoostParams
 from model.train import train
@@ -49,36 +51,29 @@ def recreate_dataset():
     return None
 
 
-def test_dataset_pipeline():
-    print("fetching dataframe and tensors..")
-    preprocessor = (
-        DataFramePreprocessor(debug=True)
-        .fetch_dataframe()
-        .add_features()
-        .encode_text_columns()
-        .create_embedding()
-        .split_dataset()
-        .pandas_df_to_tensor()
-    )
-
-    print(preprocessor.train_tensor)
-
-    return None
+def viualize_data(df):
+    viualizer = DataFrameVisualizer(df)
+    viualizer.plot_demand_distribution()
+    viualizer.plot_demand_per_warehouse()
+    viualizer.plot_total_demand_over_time()
+    viualizer.plot_top_products()
 
 
-def run_training():
-    preprocessor = (
+def get_sarimax():
+    preprocesor = (
         DataFramePreprocessor(debug=False)
         .fetch_dataframe()
         .add_features()
         .encode_text_columns()
         .create_embedding()
         .split_dataset()
-        .pandas_df_to_tensor()
     )
+    sarima = SARIMABenchmark(preprocessor=preprocesor)
+    sarima.run()
+    sarima.summary()
 
-    get_data_specs(preprocessor.df)
-    get_data_specs(preprocessor.train_df)
+
+def run_training(preprocessor):
 
     train_loader, test_loader = preprocessor.get_dataloaders()
     lstm_params = AttBiLSTMParams(
@@ -103,6 +98,7 @@ def run_training():
         model,
         dataloader=train_loader,
         optimizer=optimizer,
+        scheduler=scheduler,
         criterion=criteron,
         epochs=100,
         device=torch.device("cpu"),
@@ -111,28 +107,13 @@ def run_training():
     return history
 
 
-def main():
-    load_dotenv()
+def evaluate_model(preprocessor):
     print("fetching dataframe and tensors..")
-    preprocessor = (
-        DataFramePreprocessor(debug=False)
-        .fetch_dataframe()
-        .add_features()
-        .encode_text_columns()
-        .create_embedding()
-        .split_dataset()
-        .pandas_df_to_tensor()
-    )
 
     train_loader, test_loader = preprocessor.get_dataloaders()
 
-    print("test Specs")
-    get_data_specs(preprocessor.test_df)
-
-    print("train Specs")
-    get_data_specs(preprocessor.train_df)
     # model must be initialized with same params used during training
-    input_size = preprocessor.train_tensor[0].shape[1]
+    input_size = preprocessor.train_tensor[0].shape[1]  # type: ignore
     lstm_params = AttBiLSTMParams(
         input_size=input_size,
         hidden_size=128,
@@ -161,6 +142,22 @@ def main():
     )
     print(f"Test Loss (normalized): {test_loss:.4f}")
     print(f"Test Loss (real units): {real_error:.2f} units average error")
+
+
+def main():
+    load_dotenv()
+    preprocessor = (
+        DataFramePreprocessor(debug=False)
+        .fetch_dataframe()
+        .add_features()
+        .encode_text_columns()
+        .create_embedding()
+        .split_dataset()
+        .pandas_df_to_tensor()
+    )
+    get_sarimax()
+    evaluate_model(preprocessor)
+    get_data_specs(preprocessor.train_df)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch.nn import Module
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, TensorDataset
 
 from model.InventoryForcaster import InventoryForcaster
@@ -10,16 +11,22 @@ def train(
     model: InventoryForcaster,
     dataloader: DataLoader[TensorDataset],
     optimizer: torch.optim.Optimizer,
+    scheduler: ReduceLROnPlateau,
     criterion: Module,
     epochs: int,
     device: torch.device,
+    patience: int = 10,
 ) -> dict[str, list]:
 
     model.lstm.to(device)
     history = {"lstm_loss": [], "residual_loss": [], "combined_loss": []}
     best_loss = float("inf")
+    patience = patience
 
     for epoch in range(epochs):
+        if patience == 0:
+            break
+
         print(f"starting epoch #{epoch + 1}")
         model.lstm.train()
         epoch_lstm_loss = 0
@@ -31,7 +38,6 @@ def train(
             hidden = None
             x, targets = x.to(device), targets.to(device)
 
-            # --- Phase 1: Train LSTM ---
             optimizer.zero_grad()
             lstm_out, hidden = model.lstm(x, hidden)
 
@@ -43,7 +49,6 @@ def train(
             optimizer.step()
             epoch_lstm_loss += lstm_loss.item()
 
-            # --- Phase 2: Fit XGBoost on residuals ---
             model.lstm.eval()
             with torch.no_grad():
                 lstm_out, _ = model.lstm(x, hidden)
@@ -70,12 +75,16 @@ def train(
         history["residual_loss"].append(avg_residual_loss)
         history["combined_loss"].append(avg_combined_loss)
 
+        scheduler.step(avg_combined_loss)
+
         if avg_combined_loss < best_loss:
+            patience = 0
             best_loss = avg_combined_loss
             torch.save(model.lstm.state_dict(), "best_model.pt")
             model.xgboost.save_model("best_model_xgboost.json")
             print(f"  ✓ saved best model (combined loss: {best_loss:.4f})")
 
+        patience += 1
         print(
             f"Epoch {epoch+1}/{epochs} | "
             f"LSTM Loss: {avg_lstm_loss:.10f} | "

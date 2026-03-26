@@ -56,7 +56,6 @@ class DataFramePreprocessor:
         query = get_records_for_data_frame_query
         db = databaseManager(build_schema=False)
         self.df = pd.read_sql_query(query, db.conn)
-        print(self.df)
 
         return self
 

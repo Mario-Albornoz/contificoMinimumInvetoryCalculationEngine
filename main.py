@@ -143,6 +143,12 @@ def evaluate_model(preprocessor):
     print(f"Test Loss (normalized): {test_loss:.4f}")
     print(f"Test Loss (real units): {real_error:.2f} units average error")
 
+    train_loss, real_loss = evaluate(
+        model, train_loader, criterion, torch.device("cpu"), preprocessor.standar_scaler
+    )
+    print(f"Train Loss (normalized): {train_loss:.4f}")
+    print(f"Train Loss (real units): {real_loss:.2f} units average error")
+
 
 def main():
     load_dotenv()
@@ -157,7 +163,6 @@ def main():
     )
     get_sarimax()
     evaluate_model(preprocessor)
-    get_data_specs(preprocessor.train_df)
 
 
 if __name__ == "__main__":
